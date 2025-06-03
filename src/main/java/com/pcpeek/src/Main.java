@@ -52,33 +52,45 @@ public class Main {
     }
 
     private static String findOpenHardwareMonitor() {
-        // Chemin relatif depuis le package com.pcpeek
-        String path = "com/pcpeek/OpenHardwareMonitor/OpenHardwareMonitor.exe";
-        File file = new File(path);
+        // Vérifier le système d'exploitation
+        String os = System.getProperty("os.name").toLowerCase();
+        if (os.contains("mac") || os.contains("linux")) {
+            System.out.println("\n⚠️ ATTENTION: OpenHardwareMonitor n'est pas compatible avec votre système d'exploitation.");
+            System.out.println("OpenHardwareMonitor est un programme Windows (.exe) qui ne fonctionne que sur Windows.");
+            System.out.println("\nSystème détecté: " + System.getProperty("os.name"));
+            System.out.println("Le mode Temps Réel (RT) n'est pas disponible sur votre système.");
+            System.out.println("Veuillez utiliser le mode Statique à la place.");
+            return null;
+        }
+
+        // Chemin absolu vers OpenHardwareMonitor
+        String absolutePath = "D:\\DATA - Java E3e\\pc-peek\\src\\main\\java\\com\\pcpeek\\OpenHardwareMonitor\\OpenHardwareMonitor.exe";
+        File file = new File(absolutePath);
         
         if (file.exists()) {
             return file.getAbsolutePath();
         }
         
-        // Si non trouvé, essayer avec le chemin complet depuis src
-        path = "src/main/java/com/pcpeek/OpenHardwareMonitor/OpenHardwareMonitor.exe";
-        file = new File(path);
-        
-        if (file.exists()) {
-            return file.getAbsolutePath();
-        }
-        
-        // Si toujours non trouvé, afficher un message
+        // Si non trouvé, afficher un message
         System.out.println("\nOpenHardwareMonitor.exe non trouvé!");
-        System.out.println("Veuillez vérifier que le fichier existe dans:");
-        System.out.println("1. " + new File("com/pcpeek/OpenHardwareMonitor/OpenHardwareMonitor.exe").getAbsolutePath());
-        System.out.println("2. " + new File("src/main/java/com/pcpeek/OpenHardwareMonitor/OpenHardwareMonitor.exe").getAbsolutePath());
+        System.out.println("Chemin attendu: " + absolutePath);
         return null;
     }
 
     private static void startRTMode(Scanner scanner) {
         clearScreen();
         System.out.println("=== Mode Temps Réel ===");
+        
+        // Vérifier le système d'exploitation avant de continuer
+        String os = System.getProperty("os.name").toLowerCase();
+        if (os.contains("mac") || os.contains("linux")) {
+            System.out.println("\nLe mode Temps Réel n'est pas disponible sur votre système.");
+            System.out.println("Veuillez utiliser le mode Statique à la place.");
+            System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
+            scanner.nextLine();
+            return;
+        }
+
         try {
             // Ferme l'instance précédente d'OpenHardwareMonitor
             stopOpenHardwareMonitor();
@@ -96,6 +108,7 @@ public class Main {
             // Lance OpenHardwareMonitor
             try {
                 ProcessBuilder pb = new ProcessBuilder(ohmPath);
+                // Définir le répertoire de travail comme étant le dossier parent d'OpenHardwareMonitor
                 pb.directory(new File(ohmPath).getParentFile());
                 openHardwareMonitorProcess = pb.start();
                 Thread.sleep(1000);
