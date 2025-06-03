@@ -19,7 +19,8 @@ public class Main {
             System.out.println("╠════════════════════════════════════╣");
             System.out.println("║ 1. Mode Temps Réel (RT)            ║");
             System.out.println("║ 2. Mode Statique                   ║");
-            System.out.println("║ 3. Quitter                         ║");
+            System.out.println("║ 3. Mode Température CPU            ║");
+            System.out.println("║ 4. Quitter                         ║");
             System.out.println("╚════════════════════════════════════╝");
             System.out.print("\nVotre choix : ");
 
@@ -34,7 +35,9 @@ public class Main {
                         startStaticMode(scanner);
                         break;
                     case 3:
-                        // Fermer OpenHardwareMonitor avant de quitter
+                        startCPUTempMode(scanner);
+                        break;
+                    case 4:
                         stopOpenHardwareMonitor();
                         running = false;
                         System.out.println("\nAu revoir !");
@@ -158,6 +161,139 @@ public class Main {
         scanner.nextLine();
     }
 
+    private static void startCPUTempMode(Scanner scanner) {
+        clearScreen();
+        System.out.println("=== Mode Température CPU ===");
+        
+        // Vérifier le système d'exploitation
+        String os = System.getProperty("os.name").toLowerCase();
+        if (os.contains("mac") || os.contains("linux")) {
+            System.out.println("\n⚠️ ATTENTION: Ce mode n'est pas disponible sur votre système d'exploitation.");
+            System.out.println("La lecture de la température CPU nécessite OpenHardwareMonitor qui ne fonctionne que sur Windows.");
+            System.out.println("\nSystème détecté: " + System.getProperty("os.name"));
+            System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
+            scanner.nextLine();
+            return;
+        }
+
+        try {
+            // Ferme l'instance précédente d'OpenHardwareMonitor
+            stopOpenHardwareMonitor();
+            Thread.sleep(1000);
+
+            // Chercher et lancer OpenHardwareMonitor
+            String ohmPath = findOpenHardwareMonitor();
+            if (ohmPath == null) {
+                System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
+                scanner.nextLine();
+                return;
+            }
+
+            // Lance OpenHardwareMonitor
+            try {
+                ProcessBuilder pb = new ProcessBuilder(ohmPath);
+                pb.directory(new File(ohmPath).getParentFile());
+                openHardwareMonitorProcess = pb.start();
+                Thread.sleep(1000);
+            } catch (Exception e) {
+                System.err.println("Erreur lors du lancement d'OpenHardwareMonitor: " + e.getMessage());
+                System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
+                scanner.nextLine();
+                return;
+            }
+
+            // Initialise le moniteur
+            SystemMonitor monitor = new SystemMonitor();
+            HWMonitor hwMonitor = new HWMonitor(monitor.getSystemInfo());
+
+            // Variable pour contrôler la boucle de mise à jour
+            final boolean[] monitoring = {true};
+            
+            // Thread pour la mise à jour de la température
+            Thread updateThread = new Thread(() -> {
+                while (monitoring[0]) {
+                    try {
+                        // Nettoyer l'écran et repositionner le curseur
+                        clearScreen();
+                        
+                        // Construire tout l'affichage dans un StringBuilder
+                        StringBuilder display = new StringBuilder();
+                        display.append("=== Mode Température CPU ===\n");
+                        display.append("Appuyez sur Entrée pour revenir au menu...\n\n");
+                        
+                        // Afficher la température CPU
+                        double temp = hwMonitor.getCpuTemperature();
+                        String tempStr = String.format("%.1f°C", temp);
+                        display.append("Température CPU: ").append(tempStr).append("\n");
+                        
+                        // Créer la barre de température
+                        int barLength = 30;
+                        int filledLength = (int) ((temp / 100.0) * barLength);
+                        filledLength = Math.min(filledLength, barLength);
+                        filledLength = Math.max(filledLength, 0);
+                        
+                        StringBuilder bar = new StringBuilder();
+                        bar.append("[");
+                        for (int i = 0; i < barLength; i++) {
+                            if (i < filledLength) {
+                                if (temp >= 80) {
+                                    bar.append("█");
+                                } else if (temp >= 60) {
+                                    bar.append("▓");
+                                } else {
+                                    bar.append("░");
+                                }
+                            } else {
+                                bar.append(" ");
+                            }
+                        }
+                        bar.append("]\n\n");
+                        display.append(bar);
+                        
+                        // Ajouter les conseils
+                        if (temp >= 80) {
+                            display.append("⚠️  ATTENTION: Température élevée!\n");
+                            display.append("   - Vérifiez le refroidissement\n");
+                            display.append("   - Nettoyez les ventilateurs\n");
+                            display.append("   - Vérifiez la pâte thermique\n");
+                        } else if (temp >= 60) {
+                            display.append("ℹ️  Température normale sous charge\n");
+                        } else {
+                            display.append("✓ Température normale\n");
+                        }
+
+                        // Afficher tout d'un coup
+                        System.out.print(display.toString());
+                        System.out.flush();
+
+                        // Attendre 1 seconde
+                        Thread.sleep(1000);
+                    } catch (Exception e) {
+                        if (monitoring[0]) {
+                            System.err.println("Erreur lors de la mise à jour: " + e.getMessage());
+                        }
+                    }
+                }
+            });
+
+            // Démarrer le thread de mise à jour
+            updateThread.start();
+
+            // Attendre que l'utilisateur appuie sur Entrée
+            scanner.nextLine();
+            
+            // Arrêter le thread de mise à jour
+            monitoring[0] = false;
+            updateThread.join(1000); // Attendre que le thread se termine (max 1 seconde)
+
+        } catch (Exception e) {
+            System.err.println("Erreur lors du mode température: " + e.getMessage());
+        } finally {
+            // S'assurer qu'OpenHardwareMonitor est fermé
+            stopOpenHardwareMonitor();
+        }
+    }
+
     private static void stopOpenHardwareMonitor() {
         try {
             if (openHardwareMonitorProcess != null) {
@@ -174,14 +310,28 @@ public class Main {
     private static void clearScreen() {
         try {
             if (System.getProperty("os.name").contains("Windows")) {
-                new ProcessBuilder("cmd", "/c", "cls").inheritIO().start().waitFor();
+                // Pour Windows, utiliser une séquence de commandes plus agressive
+                new ProcessBuilder("cmd", "/c", "cls && echo. && echo. && echo.").inheritIO().start().waitFor();
+                // Repositionner le curseur en haut
+                System.out.print("\033[H");
+                System.out.flush();
             } else {
-                System.out.print("\033[H\033[2J");
+                // Pour Unix/Linux/Mac, utiliser une séquence ANSI plus complète
+                System.out.print("\033[H\033[2J\033[3J");
                 System.out.flush();
             }
         } catch (Exception e) {
-            // Si le clear screen échoue, on affiche juste quelques lignes vides
-            System.out.println("\n\n\n\n\n");
+            // En cas d'échec, on essaie une autre approche
+            try {
+                // Essayer de nettoyer avec des caractères de contrôle
+                System.out.print("\u001b[H\u001b[2J\u001b[3J");
+                System.out.flush();
+            } catch (Exception ex) {
+                // Dernier recours : beaucoup de lignes vides
+                for (int i = 0; i < 100; i++) {
+                    System.out.println();
+                }
+            }
         }
     }
 }
