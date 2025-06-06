@@ -1,8 +1,4 @@
-<<<<<<< Updated upstream:src/main/java/com/pcpeek/HardwareMonitor.java
 package com.pcpeek;
-=======
-spackage com.pcpeek.src;
->>>>>>> Stashed changes:src/main/java/com/pcpeek/src/HardwareMonitor.java
 
 import java.util.Map;
 import java.util.HashMap;

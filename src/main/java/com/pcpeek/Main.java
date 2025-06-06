@@ -2,6 +2,11 @@ package com.pcpeek;// src/Main.java
 import java.util.Scanner;
 import java.io.IOException;
 import java.io.File;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class Main {
     private static Process openHardwareMonitorProcess; // Ajout d'une variable pour suivre le processus
@@ -12,34 +17,30 @@ public class Main {
     private static final SystemMonitor systemMonitor = new SystemMonitor();
     private static final HardwareMonitor hardwareMonitor = new HardwareMonitor();
     private static final OSMonitor osMonitor = new OSMonitor();
-    private static final OHMMonitor ohmMonitor = new OHMMonitor();  // Ajout de l'instance OHMMonitor
+    private static OHMMonitor ohmMonitor;
+
+    static {
+        try {
+            ohmMonitor = new OHMMonitor();
+        } catch (Exception e) {
+            System.err.println("Erreur lors de l'initialisation d'OHMMonitor: " + e.getMessage());
+            System.exit(1);
+        }
+    }
 
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
         boolean running = true;
 
         while (running) {
-            displayMenu();
-            String choice = scanner.nextLine();
-
-            switch (choice) {
-                case "1":
-                    displaySystemInfo();
-                    break;
-                case "2":
-                    startRTMode(scanner);
-                    break;
-                case "3":
-                    startCPUTempMode(scanner);
-                    break;
-                case "4":
-                    startCPUFreqMode(scanner);
-                    break;
-                case "0":
-                    running = false;
-                    break;
-                default:
-                    System.out.println("Choix invalide");
+            try {
+                displayMenu();
+                int choice = scanner.nextInt();
+                scanner.nextLine(); // Consommer le retour à la ligne
+                handleMenuChoice(choice, scanner);
+            } catch (Exception e) {
+                System.err.println("Erreur : " + e.getMessage());
+                scanner.nextLine(); // Consommer l'entrée invalide
             }
         }
         scanner.close();
@@ -84,10 +85,10 @@ public class Main {
 
     private static void startRTMode(Scanner scanner) {
         clearScreen();
-        System.out.println("=== Mode Temps Réel ===");
+        System.out.println("=== Mode Real Time ===");
         
         if (!osMonitor.isCompatibleOS()) {
-            System.out.println("\nLe mode Temps Réel n'est pas disponible sur votre système.");
+            System.out.println("\nLe mode Real Time n'est pas disponible sur votre système.");
             System.out.println("Veuillez utiliser le mode Statique à la place.");
             System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
             scanner.nextLine();
@@ -110,7 +111,6 @@ public class Main {
 
             // Lance OpenHardwareMonitor avec privilèges administrateur
             try {
-                // Créer un script VBS temporaire pour lancer avec privilèges administrateur
                 File vbsFile = createElevationScript(ohmPath);
                 ProcessBuilder pb = new ProcessBuilder("wscript.exe", vbsFile.getAbsolutePath());
                 openHardwareMonitorProcess = pb.start();
@@ -141,17 +141,152 @@ public class Main {
             boolean monitoring = true;
             while (monitoring) {
                 clearScreen();
-                System.out.println("=== Mode Temps Réel ===");
-                System.out.println("Appuyez sur Entrée pour revenir au menu...\n");
+                StringBuilder display = new StringBuilder();
+                display.append("=== Mode Real Time ===\n");
+                display.append("Appuyez sur Entrée pour revenir au menu...\n\n");
                 
-                // Mise à jour et affichage des informations dynamiques uniquement
-                osMonitor.update();
+                // Mise à jour des capteurs
                 ohmMonitor.updateSensors();
                 
-                // Afficher uniquement les informations dynamiques
-                osMonitor.display();
-                System.out.println();
-                ohmMonitor.display();
+                // Informations CPU
+                display.append("=== CPU ===\n");
+                // Nom du CPU
+                if (hardwareMonitor.systemInfo.containsKey("cpu.name")) {
+                    display.append("Modèle: ").append(hardwareMonitor.systemInfo.get("cpu.name")).append("\n");
+                }
+                
+                // Charge CPU globale et par cœur
+                double[] loadPerCore = ohmMonitor.getCpuLoadPerCore();
+                if (loadPerCore != null && loadPerCore.length > 0) {
+                    double totalLoad = 0;
+                    display.append("\nCharge par cœur:\n");
+                    for (int i = 0; i < loadPerCore.length; i++) {
+                        totalLoad += loadPerCore[i];
+                        int barLength = 20;
+                        int filledLength = (int) (loadPerCore[i] * barLength);
+                        StringBuilder bar = new StringBuilder();
+                        bar.append("[");
+                        for (int j = 0; j < barLength; j++) {
+                            if (j < filledLength) {
+                                if (loadPerCore[i] >= 0.8) {
+                                    bar.append("█");
+                                } else if (loadPerCore[i] >= 0.5) {
+                                    bar.append("▓");
+                                } else {
+                                    bar.append("░");
+                                }
+                            } else {
+                                bar.append(" ");
+                            }
+                        }
+                        bar.append("]");
+                        display.append(String.format("  Cœur %d: %s %.1f%%\n", i, bar.toString(), loadPerCore[i] * 100));
+                    }
+                    display.append(String.format("\nCharge CPU globale: %.1f%%\n", (totalLoad / loadPerCore.length) * 100));
+                }
+                
+                // Températures CPU
+                double cpuTemp = ohmMonitor.getCpuTemperature();
+                if (cpuTemp > 0) {
+                    display.append("\nTempératures CPU:\n");
+                    display.append(String.format("  Global: %.1f°C\n", cpuTemp));
+                    
+                    // Barre de température
+                    int barLength = 20;
+                    int filledLength = (int) ((cpuTemp / 100.0) * barLength);
+                    filledLength = Math.min(filledLength, barLength);
+                    filledLength = Math.max(filledLength, 0);
+                    
+                    StringBuilder tempBar = new StringBuilder();
+                    tempBar.append("[");
+                    for (int i = 0; i < barLength; i++) {
+                        if (i < filledLength) {
+                            if (cpuTemp >= 80) {
+                                tempBar.append("█");
+                            } else if (cpuTemp >= 60) {
+                                tempBar.append("▓");
+                            } else {
+                                tempBar.append("░");
+                            }
+                        } else {
+                            tempBar.append(" ");
+                        }
+                    }
+                    tempBar.append("]");
+                    display.append("  ").append(tempBar.toString()).append("\n");
+                    
+                    // Indicateurs de température
+                    if (cpuTemp >= 80) {
+                        display.append("  ⚠️  ATTENTION: Température élevée!\n");
+                    } else if (cpuTemp >= 60) {
+                        display.append("  ℹ️  Température normale sous charge\n");
+                    } else {
+                        display.append("  ✓ Température normale\n");
+                    }
+                }
+                
+                // Mémoire
+                display.append("\n=== Mémoire ===\n");
+                long totalMemory = ohmMonitor.getTotalMemory();
+                long availableMemory = ohmMonitor.getAvailableMemory();
+                long usedMemory = totalMemory - availableMemory;
+                double memoryUsagePercent = (usedMemory * 100.0) / totalMemory;
+                
+                display.append(String.format("Totale: %.1f GB\n", totalMemory / (1024.0 * 1024.0 * 1024.0)));
+                display.append(String.format("Utilisée: %.1f GB (%.1f%%)\n", 
+                    usedMemory / (1024.0 * 1024.0 * 1024.0), memoryUsagePercent));
+                display.append(String.format("Disponible: %.1f GB\n", 
+                    availableMemory / (1024.0 * 1024.0 * 1024.0)));
+                
+                // Barre de progression mémoire
+                int memBarLength = 30;
+                int memFilledLength = (int) (memoryUsagePercent * memBarLength / 100);
+                StringBuilder memBar = new StringBuilder();
+                memBar.append("[");
+                for (int i = 0; i < memBarLength; i++) {
+                    if (i < memFilledLength) {
+                        if (memoryUsagePercent >= 90) {
+                            memBar.append("█");
+                        } else if (memoryUsagePercent >= 70) {
+                            memBar.append("▓");
+                        } else {
+                            memBar.append("░");
+                        }
+                    } else {
+                        memBar.append(" ");
+                    }
+                }
+                memBar.append("]");
+                display.append("  ").append(memBar.toString()).append("\n");
+                
+                // Ventilateurs
+                int[] fanSpeeds = ohmMonitor.getFanSpeeds();
+                if (fanSpeeds != null && fanSpeeds.length > 0) {
+                    display.append("\n=== Ventilateurs ===\n");
+                    for (int i = 0; i < fanSpeeds.length; i++) {
+                        if (fanSpeeds[i] > 0) {
+                            display.append(String.format("Ventilateur %d: %d RPM\n", i, fanSpeeds[i]));
+                        }
+                    }
+                }
+                
+                // GPU (si disponible)
+                display.append("\n=== GPU ===\n");
+                double gpuTemp = ohmMonitor.getGpuTemperature();
+                double gpuLoad = ohmMonitor.getGpuLoad();
+                if (gpuTemp > 0 || gpuLoad > 0) {
+                    if (gpuTemp > 0) {
+                        display.append(String.format("Température: %.1f°C\n", gpuTemp));
+                    }
+                    if (gpuLoad > 0) {
+                        display.append(String.format("Charge: %.1f%%\n", gpuLoad));
+                    }
+                } else {
+                    display.append("Informations non disponibles\n");
+                }
+
+                System.out.print(display.toString());
+                System.out.flush();
 
                 // Attendre l'entrée de l'utilisateur
                 if (scanner.hasNextLine()) {
@@ -479,51 +614,30 @@ public class Main {
         return String.format("%.1f %sB", bytes / Math.pow(1024, exp), pre);
     }
 
-    private static void startCPUTempMode(Scanner scanner) {
-        clearScreen();
-        System.out.println("=== Mode Température CPU ===");
-        
-        if (!osMonitor.isCompatibleOS()) {
-            System.out.println("\n⚠️ ATTENTION: Ce mode n'est pas disponible sur votre système d'exploitation.");
-            System.out.println("La lecture de la température CPU nécessite OpenHardwareMonitor qui ne fonctionne que sur Windows.");
-            System.out.println("\nSystème détecté: " + System.getProperty("os.name"));
-            System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
-            scanner.nextLine();
-            return;
-        }
+    private static boolean isWindows() {
+        return System.getProperty("os.name").toLowerCase().contains("windows");
+    }
 
+    private static void startSystemInfoMode(Scanner scanner) {
         try {
-            // Ferme l'instance précédente d'OpenHardwareMonitor
-            stopOpenHardwareMonitor();
-            Thread.sleep(1000);
+            clearScreen();
+            System.out.println("=== Mode Informations Système ===");
+            System.out.println("Appuyez sur Entrée pour revenir au menu...");
+            
+            // Afficher les informations système
+            ohmMonitor.display();
+            
+            scanner.nextLine();
+        } catch (Exception e) {
+            System.err.println("Erreur lors du mode informations système : " + e.getMessage());
+        }
+    }
 
-            // Chercher et lancer OpenHardwareMonitor
-            String ohmPath = findOpenHardwareMonitor();
-            if (ohmPath == null) {
-                System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
-                scanner.nextLine();
-                return;
-            }
-
-            // Lance OpenHardwareMonitor avec privilèges administrateur
-            try {
-                // Créer un script VBS temporaire pour lancer avec privilèges administrateur
-                File vbsFile = createElevationScript(ohmPath);
-                ProcessBuilder pb = new ProcessBuilder("wscript.exe", vbsFile.getAbsolutePath());
-                openHardwareMonitorProcess = pb.start();
-                Thread.sleep(2000); // Attendre l'initialisation
-
-                // Tenter de se connecter à OHM
-                if (!ohmMonitor.connect()) {
-                    System.out.println("\n⚠️ Impossible de se connecter à OpenHardwareMonitor.");
-                    System.out.println("Veuillez vérifier que l'application est bien lancée avec les privilèges administrateur.");
-                    System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
-                    scanner.nextLine();
-                    return;
-                }
-            } catch (Exception e) {
-                System.err.println("Erreur lors du lancement d'OpenHardwareMonitor: " + e.getMessage());
-                System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
+    private static void startCPUTempMode(Scanner scanner) {
+        try {
+            if (!isWindows()) {
+                System.out.println("⚠️  Le mode température CPU n'est disponible que sous Windows");
+                System.out.println("Appuyez sur Entrée pour revenir au menu...");
                 scanner.nextLine();
                 return;
             }
@@ -543,7 +657,6 @@ public class Main {
                         // Mettre à jour les capteurs
                         ohmMonitor.updateSensors();
                         
-                        // Afficher la température CPU
                         double temp = ohmMonitor.getCpuTemperature();
                         String tempStr = String.format("%.1f°C", temp);
                         display.append("Température CPU: ").append(tempStr).append("\n");
@@ -577,7 +690,6 @@ public class Main {
                             display.append("⚠️  ATTENTION: Température élevée!\n");
                             display.append("   - Vérifiez le refroidissement\n");
                             display.append("   - Nettoyez les ventilateurs\n");
-                            display.append("   - Vérifiez la pâte thermique\n");
                         } else if (temp >= 60) {
                             display.append("ℹ️  Température normale sous charge\n");
                         } else {
@@ -603,162 +715,6 @@ public class Main {
 
         } catch (Exception e) {
             System.err.println("Erreur lors du mode température: " + e.getMessage());
-        } finally {
-            stopOpenHardwareMonitor();
-        }
-    }
-
-    private static void startCPUFreqMode(Scanner scanner) {
-        clearScreen();
-        System.out.println("=== Mode Fréquences CPU ===");
-        
-        if (!osMonitor.isCompatibleOS()) {
-            System.out.println("\n⚠️ ATTENTION: Ce mode n'est pas disponible sur votre système d'exploitation.");
-            System.out.println("La lecture des fréquences CPU nécessite Windows.");
-            System.out.println("\nSystème détecté: " + System.getProperty("os.name"));
-            System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
-            scanner.nextLine();
-            return;
-        }
-
-        System.out.println("\nAppuyez sur 'q' pour quitter, ou une autre touche pour mettre à jour...");
-        
-        boolean running = true;
-        while (running) {
-            try {
-                clearScreen();
-                System.out.println("=== Mode Fréquences CPU ===");
-                
-                // Obtenir le nom du processeur
-                Process cpuNameProcess = Runtime.getRuntime().exec("wmic cpu get name");
-                java.io.BufferedReader cpuNameReader = new java.io.BufferedReader(new java.io.InputStreamReader(cpuNameProcess.getInputStream()));
-                String cpuNameLine;
-                boolean firstLine = true;
-                while ((cpuNameLine = cpuNameReader.readLine()) != null) {
-                    if (firstLine) {
-                        firstLine = false;
-                        continue;
-                    }
-                    if (!cpuNameLine.trim().isEmpty()) {
-                        System.out.println("\nProcesseur : " + cpuNameLine.trim());
-                    }
-                }
-                cpuNameProcess.waitFor();
-                
-                System.out.println("=".repeat(50));
-                
-                // Obtenir les fréquences de tous les cœurs
-                Process freqProcess = Runtime.getRuntime().exec("wmic path Win32_PerfFormattedData_Counters_ProcessorInformation where Name!='_Total' get Name,PercentProcessorTime");
-                java.io.BufferedReader freqReader = new java.io.BufferedReader(new java.io.InputStreamReader(freqProcess.getInputStream()));
-                String freqLine;
-                firstLine = true;
-                double[] frequencies = new double[Runtime.getRuntime().availableProcessors()];
-                double maxFreq = 0;
-                
-                // Obtenir la fréquence maximale du CPU
-                Process maxFreqProcess = Runtime.getRuntime().exec("wmic cpu get maxclockspeed");
-                java.io.BufferedReader maxFreqReader = new java.io.BufferedReader(new java.io.InputStreamReader(maxFreqProcess.getInputStream()));
-                String maxFreqLine;
-                firstLine = true;
-                while ((maxFreqLine = maxFreqReader.readLine()) != null) {
-                    if (firstLine) {
-                        firstLine = false;
-                        continue;
-                    }
-                    if (!maxFreqLine.trim().isEmpty()) {
-                        maxFreq = Double.parseDouble(maxFreqLine.trim()) / 1000.0; // Convertir en GHz
-                    }
-                }
-                maxFreqProcess.waitFor();
-                
-                // Lire les fréquences des cœurs
-                firstLine = true;
-                int coreIndex = 0;
-                while ((freqLine = freqReader.readLine()) != null) {
-                    if (firstLine) {
-                        firstLine = false;
-                        continue;
-                    }
-                    if (!freqLine.trim().isEmpty() && coreIndex < frequencies.length) {
-                        String[] parts = freqLine.trim().split("\\s+", 2);
-                        if (parts.length >= 2) {
-                            double load = Double.parseDouble(parts[1]);
-                            // Si le cœur est sous charge (>50%), on considère qu'il est à la fréquence maximale
-                            frequencies[coreIndex] = (load > 50) ? maxFreq * 1000 : maxFreq * 0.8 * 1000; // Convertir en MHz
-                            coreIndex++;
-                        }
-                    }
-                }
-                freqProcess.waitFor();
-                
-                // Afficher les fréquences par cœur
-                if (frequencies.length > 0) {
-                    System.out.println("\nFréquences par cœur :");
-                    System.out.println("-".repeat(30));
-                    
-                    for (int i = 0; i < frequencies.length; i++) {
-                        if (frequencies[i] > 0) {
-                            // Créer une barre visuelle pour la fréquence
-                            int barLength = 30;
-                            double maxFreqMHz = maxFreq * 1000; // Maximum en MHz
-                            int filledLength = (int) ((frequencies[i] / maxFreqMHz) * barLength);
-                            filledLength = Math.min(filledLength, barLength);
-                            
-                            StringBuilder bar = new StringBuilder();
-                            bar.append("[");
-                            for (int j = 0; j < barLength; j++) {
-                                if (j < filledLength) {
-                                    if (frequencies[i] >= maxFreqMHz * 0.9) {
-                                        bar.append("█"); // Fréquence élevée
-                                    } else if (frequencies[i] >= maxFreqMHz * 0.7) {
-                                        bar.append("▓"); // Fréquence moyenne
-                                    } else {
-                                        bar.append("░"); // Fréquence basse
-                                    }
-                                } else {
-                                    bar.append(" ");
-                                }
-                            }
-                            bar.append("]");
-                            
-                            System.out.printf("Cœur %2d: %6.2f GHz %s%n", 
-                                i, frequencies[i] / 1000.0, bar.toString());
-                        }
-                    }
-                    
-                    // Afficher la fréquence moyenne
-                    double avgFreq = 0;
-                    int count = 0;
-                    for (double freq : frequencies) {
-                        if (freq > 0) {
-                            avgFreq += freq;
-                            count++;
-                        }
-                    }
-                    if (count > 0) {
-                        avgFreq /= count;
-                        System.out.printf("\nFréquence moyenne : %.2f GHz%n", avgFreq / 1000.0);
-                        System.out.printf("Fréquence maximale : %.2f GHz%n", maxFreq);
-                    }
-                } else {
-                    System.out.println("\n⚠️ Impossible de récupérer les fréquences CPU");
-                }
-                
-                // Attendre l'entrée utilisateur
-                if (System.in.available() > 0) {
-                    int input = System.in.read();
-                    if (input == 'q' || input == 'Q') {
-                        running = false;
-                    }
-                }
-                
-                // Attendre un court instant avant la prochaine mise à jour
-                Thread.sleep(1000);
-                
-            } catch (Exception e) {
-                System.err.println("Erreur lors de la mise à jour des fréquences : " + e.getMessage());
-                running = false;
-            }
         }
     }
 
@@ -779,47 +735,262 @@ public class Main {
 
     private static void clearScreen() {
         try {
-            if (System.getProperty("os.name").contains("Windows")) {
-                // Pour Windows, utiliser une séquence de commandes plus agressive
-                new ProcessBuilder("cmd", "/c", "cls && echo. && echo. && echo.").inheritIO().start().waitFor();
-                // Repositionner le curseur en haut
-                System.out.print("\033[H");
-                System.out.flush();
+            if (System.getProperty("os.name").toLowerCase().contains("windows")) {
+                new ProcessBuilder("cmd", "/c", "cls").inheritIO().start().waitFor();
             } else {
-                // Pour Unix/Linux/Mac, utiliser une séquence ANSI plus complète
-                System.out.print("\033[H\033[2J\033[3J");
+                System.out.print("\033[H\033[2J");
                 System.out.flush();
             }
         } catch (Exception e) {
-            // En cas d'échec, on essaie une autre approche
-            try {
-                // Essayer de nettoyer avec des caractères de contrôle
-                System.out.print("\u001b[H\u001b[2J\u001b[3J");
-                System.out.flush();
-            } catch (Exception ex) {
-                // Dernier recours : beaucoup de lignes vides
-                for (int i = 0; i < 100; i++) {
-                    System.out.println();
-                }
-            }
+            System.err.println("Erreur lors du nettoyage de l'écran: " + e.getMessage());
         }
     }
 
     private static void displayMenu() {
         System.out.println("\n=== PC-Peek ===");
-        System.out.println("1. Informations STATIC");
-        System.out.println("2. Mode temps réel");
-        System.out.println("3. Mode température CPU");
-        System.out.println("4. Mode fréquences CPU");
-        System.out.println("0. Quitter");
+        System.out.println("1. Mode Statique (snapshot complet)");
+        System.out.println("2. Mode Real Time (informations dynamiques)");
+        System.out.println("3. Mode Températures (affichage en temps réel)");
+        System.out.println("4. Quitter");
         System.out.print("\nVotre choix : ");
     }
 
-    private static void displaySystemInfo() {
-        startStaticMode(new Scanner(System.in));
+    private static void handleMenuChoice(int choice, Scanner scanner) {
+        switch (choice) {
+            case 1:
+                startStaticMode(scanner);
+                break;
+            case 2:
+                startRTMode(scanner);
+                break;
+            case 3:
+                startTemperatureMode(scanner);
+                break;
+            case 4:
+                System.out.println("Au revoir !");
+                System.exit(0);
+                break;
+            default:
+                System.out.println("Choix invalide !");
+        }
     }
 
-    private static void displayHardwareInfo() {
-        // Implementation of displayHardwareInfo method
+    private static void startTemperatureMode(Scanner scanner) {
+        clearScreen();
+        System.out.println("=== Mode Températures ===");
+        
+        if (!osMonitor.isCompatibleOS()) {
+            System.out.println("\nLe mode Températures n'est pas disponible sur votre système.");
+            System.out.println("Veuillez utiliser le mode Statique à la place.");
+            System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
+            scanner.nextLine();
+            return;
+        }
+
+        try {
+            // Ferme l'instance précédente d'OpenHardwareMonitor
+            stopOpenHardwareMonitor();
+            Thread.sleep(1000);
+
+            // Chercher OpenHardwareMonitor
+            String ohmPath = findOpenHardwareMonitor();
+            
+            if (ohmPath == null) {
+                System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
+                scanner.nextLine();
+                return;
+            }
+
+            // Lance OpenHardwareMonitor avec privilèges administrateur
+            try {
+                File vbsFile = createElevationScript(ohmPath);
+                ProcessBuilder pb = new ProcessBuilder("wscript.exe", vbsFile.getAbsolutePath());
+                openHardwareMonitorProcess = pb.start();
+                Thread.sleep(2000); // Attendre l'initialisation
+                
+                System.out.println("Lancement d'OpenHardwareMonitor avec privilèges administrateur...");
+
+                // Tenter de se connecter à OHM
+                if (!ohmMonitor.connect()) {
+                    System.out.println("\n⚠️ Impossible de se connecter à OpenHardwareMonitor.");
+                    System.out.println("Veuillez vérifier que l'application est bien lancée avec les privilèges administrateur.");
+                    System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
+                    scanner.nextLine();
+                    return;
+                }
+
+            } catch (Exception e) {
+                System.err.println("Erreur lors du lancement d'OpenHardwareMonitor: " + e.getMessage());
+                if (e.getMessage().contains("740")) {
+                    System.out.println("\n⚠️ L'application nécessite des privilèges administrateur.");
+                    System.out.println("Veuillez relancer le programme en tant qu'administrateur.");
+                }
+                System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
+                scanner.nextLine();
+                return;
+            }
+
+            // Créer un thread pour lire l'entrée utilisateur
+            final boolean[] monitoring = {true};
+            Thread inputThread = new Thread(() -> {
+                try {
+                    while (monitoring[0]) {
+                        if (System.in.available() > 0) {
+                            int input = System.in.read();
+                            if (input == 'q' || input == 'Q') {
+                                monitoring[0] = false;
+                                break;
+                            }
+                        }
+                        Thread.sleep(100); // Vérifier toutes les 100ms
+                    }
+                } catch (Exception e) {
+                    // Ignorer les erreurs de lecture
+                }
+            });
+            inputThread.setDaemon(true);
+            inputThread.start();
+
+            // Boucle principale de mise à jour
+            while (monitoring[0]) {
+                clearScreen();
+                StringBuilder display = new StringBuilder();
+                display.append("=== Mode Températures ===\n");
+                display.append("Appuyez sur 'Q' pour quitter...\n\n");
+                
+                // Mise à jour des capteurs
+                ohmMonitor.updateSensors();
+                
+                // Température CPU
+                double cpuTemp = ohmMonitor.getCpuTemperature();
+                if (cpuTemp > 0) {
+                    display.append("=== CPU ===\n");
+                    display.append(String.format("Température: %.1f°C\n", cpuTemp));
+                    
+                    // Barre de température CPU
+                    int barLength = 30;
+                    int filledLength = (int) ((cpuTemp / 100.0) * barLength);
+                    filledLength = Math.min(filledLength, barLength);
+                    filledLength = Math.max(filledLength, 0);
+                    
+                    StringBuilder tempBar = new StringBuilder();
+                    tempBar.append("[");
+                    for (int i = 0; i < barLength; i++) {
+                        if (i < filledLength) {
+                            if (cpuTemp >= 80) {
+                                tempBar.append("█"); // Rouge pour température élevée
+                            } else if (cpuTemp >= 60) {
+                                tempBar.append("▓"); // Orange pour température moyenne
+                            } else {
+                                tempBar.append("░"); // Vert pour température normale
+                            }
+                        } else {
+                            tempBar.append(" ");
+                        }
+                    }
+                    tempBar.append("]");
+                    display.append("  ").append(tempBar.toString()).append("\n");
+                    
+                    // Indicateurs de température CPU
+                    if (cpuTemp >= 80) {
+                        display.append("  ⚠️  ATTENTION: Température élevée!\n");
+                        display.append("  Recommandations:\n");
+                        display.append("  - Vérifiez le refroidissement\n");
+                        display.append("  - Nettoyez les ventilateurs\n");
+                        display.append("  - Vérifiez la pâte thermique\n");
+                    } else if (cpuTemp >= 60) {
+                        display.append("  ℹ️  Température normale sous charge\n");
+                    } else {
+                        display.append("  ✓ Température normale\n");
+                    }
+                }
+                
+                // Température GPU
+                double gpuTemp = ohmMonitor.getGpuTemperature();
+                if (gpuTemp > 0) {
+                    display.append("\n=== GPU ===\n");
+                    display.append(String.format("Température: %.1f°C\n", gpuTemp));
+                    
+                    // Barre de température GPU
+                    int barLength = 30;
+                    int filledLength = (int) ((gpuTemp / 100.0) * barLength);
+                    filledLength = Math.min(filledLength, barLength);
+                    filledLength = Math.max(filledLength, 0);
+                    
+                    StringBuilder tempBar = new StringBuilder();
+                    tempBar.append("[");
+                    for (int i = 0; i < barLength; i++) {
+                        if (i < filledLength) {
+                            if (gpuTemp >= 80) {
+                                tempBar.append("█"); // Rouge pour température élevée
+                            } else if (gpuTemp >= 60) {
+                                tempBar.append("▓"); // Orange pour température moyenne
+                            } else {
+                                tempBar.append("░"); // Vert pour température normale
+                            }
+                        } else {
+                            tempBar.append(" ");
+                        }
+                    }
+                    tempBar.append("]");
+                    display.append("  ").append(tempBar.toString()).append("\n");
+                    
+                    // Indicateurs de température GPU
+                    if (gpuTemp >= 80) {
+                        display.append("  ⚠️  ATTENTION: Température élevée!\n");
+                        display.append("  Recommandations:\n");
+                        display.append("  - Vérifiez le refroidissement\n");
+                        display.append("  - Nettoyez les ventilateurs\n");
+                        display.append("  - Vérifiez la pâte thermique\n");
+                    } else if (gpuTemp >= 60) {
+                        display.append("  ℹ️  Température normale sous charge\n");
+                    } else {
+                        display.append("  ✓ Température normale\n");
+                    }
+                }
+                
+                // Ventilateurs
+                int[] fanSpeeds = ohmMonitor.getFanSpeeds();
+                if (fanSpeeds != null && fanSpeeds.length > 0) {
+                    display.append("\n=== Ventilateurs ===\n");
+                    for (int i = 0; i < fanSpeeds.length; i++) {
+                        if (fanSpeeds[i] > 0) {
+                            display.append(String.format("Ventilateur %d: %d RPM\n", i, fanSpeeds[i]));
+                        }
+                    }
+                }
+
+                // Légende
+                display.append("\n=== Légende ===\n");
+                display.append("░ : Température normale (< 60°C)\n");
+                display.append("▓ : Température moyenne (60-80°C)\n");
+                display.append("█ : Température élevée (> 80°C)\n");
+
+                System.out.print(display.toString());
+                System.out.flush();
+
+                Thread.sleep(1000); // Mise à jour toutes les secondes
+            }
+        } catch (Exception e) {
+            System.err.println("Erreur lors du mode températures: " + e.getMessage());
+        } finally {
+            stopOpenHardwareMonitor();
+        }
+    }
+
+    private static void startHardwareMode(Scanner scanner) {
+        clearScreen();
+        System.out.println("=== Mode Informations Matérielles ===");
+        hardwareMonitor.display();
+        System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
+        scanner.nextLine();
+    }
+
+    private static void startOSMode(Scanner scanner) {
+        clearScreen();
+        System.out.println("=== Mode Informations OS ===");
+        osMonitor.display();
+        System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
+        scanner.nextLine();
     }
 }
