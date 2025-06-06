@@ -42,21 +42,48 @@ public class DashboardView extends Main {
         initializeMonitors();
 
         Board board = new Board();
-        
-        // Première ligne : métriques principales
-        board.addRow(
+
+        // Colonne de gauche : image + infos système
+        Component leftColumn = createDeviceInfoColumn();
+        leftColumn.getElement().getStyle().remove("flex-basis");
+        leftColumn.getElement().getStyle().set("minWidth", "180px").set("maxWidth", "340px");
+
+        // Colonne de droite : highlights, graphique CPU, jauge température
+        VerticalLayout rightColumn = new VerticalLayout();
+        rightColumn.setPadding(false);
+        rightColumn.setSpacing(false);
+        rightColumn.setWidthFull();
+
+        // Highlights (ligne de 4)
+        HorizontalLayout highlights = new HorizontalLayout(
             createHighlight("Charge CPU", String.format("%.1f%%", getCpuLoad()), 0.0),
             createHighlight("Température CPU", String.format("%.1f°C", getCpuTemperature()), 0.0),
             createHighlight("Charge GPU", getGpuLoadString(), 0.0),
             createHighlight("Température GPU", getGpuTemperatureString(), 0.0)
         );
-        
-        // Deuxième ligne : graphique des charges CPU par cœur
-        board.addRow(createCpuLoadChart());
-        
-        // Troisième ligne : informations détaillées et température
-        board.addRow(createSystemInfo(), createTemperatureGauge());
-        
+        highlights.setWidthFull();
+        rightColumn.add(highlights);
+
+        // Graphique CPU + RAM usage côte à côte
+        HorizontalLayout cpuAndRamRow = new HorizontalLayout();
+        cpuAndRamRow.setWidthFull();
+        cpuAndRamRow.setSpacing(true);
+        cpuAndRamRow.setPadding(false);
+        cpuAndRamRow.add(createCpuLoadChart(), createRamUsageBlock());
+        rightColumn.add(cpuAndRamRow);
+
+        // Contrôle du volume par application (sous le bloc CPU+RAM)
+        rightColumn.add(createVolumePerAppBlock());
+
+        // Utilisation d'un HorizontalLayout pour avoir une colonne gauche moins large
+        HorizontalLayout mainRow = new HorizontalLayout(leftColumn, rightColumn);
+        mainRow.setWidthFull();
+        mainRow.setSpacing(false);
+        mainRow.setPadding(false);
+        mainRow.setFlexGrow(0, leftColumn);
+        mainRow.setFlexGrow(1, rightColumn);
+
+        board.addRow(mainRow);
         add(board);
     }
 
@@ -107,7 +134,7 @@ public class DashboardView extends Main {
 
     private Component createCpuLoadChart() {
         // Header
-        HorizontalLayout header = createHeader("CPU : Charge & Température dans le temps", "Temps réel");
+        HorizontalLayout header = createHeader("CPU Load & Temps", "Temps réel");
 
         // Chart
         Chart chart = new Chart(ChartType.LINE);
@@ -152,6 +179,25 @@ public class DashboardView extends Main {
         return layout;
     }
 
+    // Ajout d'une colonne verticale avec image + infos système
+    private Component createDeviceInfoColumn() {
+        // Image placeholder
+        com.vaadin.flow.component.html.Image deviceImage = new com.vaadin.flow.component.html.Image(
+            "https://via.placeholder.com/300x300?text=Appareil", "Image appareil");
+        deviceImage.setWidth("300px");
+        deviceImage.setHeight("300px");
+        deviceImage.getStyle().set("display", "block").set("margin", "0 auto 1rem auto");
+
+        Component systemInfo = createSystemInfo();
+
+        VerticalLayout layout = new VerticalLayout(deviceImage, systemInfo);
+        layout.setPadding(false);
+        layout.setSpacing(false);
+        layout.setWidthFull();
+        layout.getStyle().setWidth("640px").setMaxWidth("1000px").setMinWidth("440px");
+        return layout;
+    }
+
     private Component createSystemInfo() {
         HorizontalLayout header = createHeader("Informations Système", "Détails matériels");
 
@@ -177,34 +223,59 @@ public class DashboardView extends Main {
         return layout;
     }
 
-    private Component createTemperatureGauge() {
-        HorizontalLayout header = createHeader("Température CPU", "Monitoring thermique");
 
-        Chart chart = new Chart(ChartType.SOLIDGAUGE);
+    // Bloc RAM usage : Active, Résidente, Compressée sous forme de pie chart
+    private Component createRamUsageBlock() {
+        HorizontalLayout header = createHeader("RAM Usage", "Active, résidente et compressée");
+
+        Chart chart = new Chart(ChartType.PIE);
         Configuration conf = chart.getConfiguration();
+        conf.setTitle("");
         conf.getChart().setStyledMode(true);
 
-        Pane pane = new Pane();
-        pane.setStartAngle(-90);
-        pane.setEndAngle(90);
-        conf.addPane(pane);
+        DataSeries series = new DataSeries();
+        series.add(new DataSeriesItem("Active", getRamActive()));
+        series.add(new DataSeriesItem("Résidente", getRamResident()));
+        series.add(new DataSeriesItem("Compressée", getRamCompressed()));
+        conf.setSeries(series);
 
-        YAxis yAxis = new YAxis();
-        yAxis.setMin(0);
-        yAxis.setMax(100);
-        yAxis.setTitle("°C");
-        conf.addyAxis(yAxis);
-
-        PlotOptionsSolidgauge plotOptions = new PlotOptionsSolidgauge();
-        DataLabels dataLabels = new DataLabels();
-        dataLabels.setFormat("{y}°C");
-        plotOptions.setDataLabels(dataLabels);
-        conf.addPlotOptions(plotOptions);
-
-        ListSeries series = new ListSeries("Température", getCpuTemperature());
-        conf.addSeries(series);
+        PlotOptionsPie options = new PlotOptionsPie();
+        options.setDataLabels(new DataLabels(true));
+        conf.setPlotOptions(options);
 
         VerticalLayout layout = new VerticalLayout(header, chart);
+        layout.addClassName(Padding.LARGE);
+        layout.setPadding(false);
+        layout.setSpacing(false);
+        return layout;
+    }
+
+    // Bloc de contrôle du volume par application
+    private Component createVolumePerAppBlock() {
+        HorizontalLayout header = createHeader("Volume par application", "Contrôle individuel");
+
+        Grid<VolumeInfoItem> grid = new Grid<>(VolumeInfoItem.class, false);
+        grid.addThemeVariants(GridVariant.LUMO_NO_BORDER, GridVariant.LUMO_NO_ROW_BORDERS);
+        grid.addColumn(VolumeInfoItem::getApp).setHeader("Application").setFlexGrow(1);
+        grid.addComponentColumn(item -> {
+            com.vaadin.flow.component.html.Input slider = new com.vaadin.flow.component.html.Input();
+            slider.setType("range");
+            slider.getElement().setAttribute("min", "0");
+            slider.getElement().setAttribute("max", "100");
+            slider.setValue(String.valueOf(item.getVolume()));
+            slider.getStyle().set("width", "120px");
+            // Pas d'écouteur natif ici, mais on peut ajouter un ValueChangeListener si besoin
+            return slider;
+        }).setHeader("Volume").setAutoWidth(true);
+
+        // Exemple de données fictives (à remplacer par la vraie liste d'apps/volumes)
+        grid.setItems(
+            new VolumeInfoItem("Spotify", 70),
+            new VolumeInfoItem("Chrome", 40),
+            new VolumeInfoItem("Teams", 90)
+        );
+
+        VerticalLayout layout = new VerticalLayout(header, grid);
         layout.addClassName(Padding.LARGE);
         layout.setPadding(false);
         layout.setSpacing(false);
@@ -302,6 +373,20 @@ public class DashboardView extends Main {
         return String.valueOf(bytes);
     }
 
+    // Getters RAM à implémenter dynamiquement
+    private long getRamActive() {
+        // À implémenter dynamiquement
+        return 0L;
+    }
+    private long getRamResident() {
+        // À implémenter dynamiquement
+        return 0L;
+    }
+    private long getRamCompressed() {
+        // À implémenter dynamiquement
+        return 0L;
+    }
+
     // Classe interne pour les éléments d'information système
     public static class SystemInfoItem {
         private String component;
@@ -319,5 +404,29 @@ public class DashboardView extends Main {
         public String getValue() {
             return value;
         }
+    }
+
+    // Classe interne pour les infos RAM
+    public static class RamInfoItem {
+        private String type;
+        private String value;
+        public RamInfoItem(String type, String value) {
+            this.type = type;
+            this.value = value;
+        }
+        public String getType() { return type; }
+        public String getValue() { return value; }
+    }
+
+    // Classe interne pour les infos de volume par application
+    public static class VolumeInfoItem {
+        private String app;
+        private int volume;
+        public VolumeInfoItem(String app, int volume) {
+            this.app = app;
+            this.volume = volume;
+        }
+        public String getApp() { return app; }
+        public int getVolume() { return volume; }
     }
 }
