@@ -1,4 +1,4 @@
-package com.pcpeek.src;// src/Main.java
+package com.pcpeek;// src/Main.java
 import java.util.Scanner;
 import java.io.IOException;
 import java.io.File;

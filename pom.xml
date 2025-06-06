@@ -57,6 +57,11 @@
             <groupId>com.vaadin</groupId>
             <artifactId>vaadin-spring-boot-starter</artifactId>
         </dependency>
+        <!-- Vaadin Charts -->
+        <dependency>
+            <groupId>com.vaadin</groupId>
+            <artifactId>vaadin-charts-flow</artifactId>
+        </dependency>
 
         <!-- Persistence -->
         <dependency>
@@ -133,6 +138,14 @@
             <artifactId>junit-jupiter-api</artifactId>
             <version>${junit.version}</version>
             <scope>test</scope>
+        </dependency>
+        <!-- Dépendance factice pour éviter l'erreur de résolution JUnit 5.8.2 -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.2</version>
+            <scope>test</scope>
+            <optional>true</optional>
         </dependency>
     </dependencies>
 

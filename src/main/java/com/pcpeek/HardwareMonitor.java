@@ -1,4 +1,4 @@
-package com.pcpeek.src;
+package com.pcpeek;
 
 import java.util.Map;
 import java.util.HashMap;

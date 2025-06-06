@@ -1,4 +1,4 @@
-package com.pcpeek.src;
+package com.pcpeek;
 
 import oshi.SystemInfo;
 import oshi.hardware.CentralProcessor;

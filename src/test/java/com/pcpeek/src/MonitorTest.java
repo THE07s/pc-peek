@@ -2,6 +2,9 @@ package com.pcpeek.src;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import com.pcpeek.Monitor;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 public class MonitorTest {
