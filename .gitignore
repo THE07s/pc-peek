@@ -28,4 +28,4 @@ replay_pid*
 .vscode/
 target/
 /src/main/frontend/generated/
-.DS_Store
+**/.DS_Store
