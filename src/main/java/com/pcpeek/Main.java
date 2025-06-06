@@ -192,34 +192,24 @@ public class Main {
         System.out.println("=== Informations Système ===");
         try {
             // Informations CPU
-            Process cpuProcess = Runtime.getRuntime().exec("wmic cpu get name,numberofcores,numberoflogicalprocessors,maxclockspeed");
+            Process cpuProcess = Runtime.getRuntime().exec("wmic cpu get name");
             java.io.BufferedReader cpuReader = new java.io.BufferedReader(new java.io.InputStreamReader(cpuProcess.getInputStream()));
             String cpuLine;
             boolean firstLine = true;
-            boolean hasCPU = false;
             while ((cpuLine = cpuReader.readLine()) != null) {
                 if (firstLine) {
                     firstLine = false;
                     continue;
                 }
                 if (!cpuLine.trim().isEmpty()) {
-                    hasCPU = true;
-                    String[] parts = cpuLine.trim().split("\\s+", 4);
-                    if (parts.length >= 4) {
-                        if (!hasCPU) {
-                            System.out.println("\n=== Processeur ===");
-                        }
-                        System.out.println("Modèle : " + parts[0]);
-                        System.out.println("Cœurs physiques : " + parts[1]);
-                        System.out.println("Threads : " + parts[2]);
-                        System.out.println("Fréquence maximale : " + (Integer.parseInt(parts[3]) / 1000.0) + " GHz");
-                    }
+                    System.out.println("\n=== Processeur ===");
+                    System.out.println(cpuLine.trim());
                 }
             }
             cpuProcess.waitFor();
 
             // Informations GPU
-            Process gpuProcess = Runtime.getRuntime().exec("wmic path win32_VideoController get name,adapterram,driverversion,currentrefreshrate");
+            Process gpuProcess = Runtime.getRuntime().exec("wmic path win32_VideoController get name");
             java.io.BufferedReader gpuReader = new java.io.BufferedReader(new java.io.InputStreamReader(gpuProcess.getInputStream()));
             String gpuLine;
             firstLine = true;
@@ -234,82 +224,23 @@ public class Main {
                         System.out.println("\n=== Cartes Graphiques ===");
                         hasGPU = true;
                     }
-                    String[] parts = gpuLine.trim().split("\\s+", 4);
-                    if (parts.length >= 4) {
-                        System.out.println("\nCarte graphique : " + parts[0]);
-                        try {
-                            long vram = Long.parseLong(parts[1]);
-                            System.out.println("Mémoire vidéo : " + formatSize(vram));
-                        } catch (NumberFormatException e) {
-                            // Ignorer si la mémoire vidéo n'est pas disponible
-                        }
-                        System.out.println("Version du pilote : " + parts[2]);
-                        try {
-                            int refreshRate = Integer.parseInt(parts[3]);
-                            if (refreshRate > 0) {
-                                System.out.println("Fréquence de rafraîchissement : " + refreshRate + " Hz");
-                            }
-                        } catch (NumberFormatException e) {
-                            // Ignorer si la fréquence n'est pas disponible
-                        }
-                    } else if (parts.length >= 1) {
-                        System.out.println("\nCarte graphique : " + parts[0]);
-                    }
+                    System.out.println(gpuLine.trim());
                 }
             }
 
-            // Informations RAM
-            Process ramProcess = Runtime.getRuntime().exec("wmic computersystem get totalphysicalmemory");
-            java.io.BufferedReader ramReader = new java.io.BufferedReader(new java.io.InputStreamReader(ramProcess.getInputStream()));
-            String ramLine;
-            firstLine = true;
-            boolean hasRAM = false;
-            while ((ramLine = ramReader.readLine()) != null) {
-                if (firstLine) {
-                    firstLine = false;
-                    continue;
-                }
-                if (!ramLine.trim().isEmpty()) {
-                    hasRAM = true;
-                    long totalRAM = Long.parseLong(ramLine.trim());
-                    if (totalRAM > 0) {
-                        System.out.println("\n=== Mémoire ===");
-                        System.out.println("RAM totale : " + formatSize(totalRAM));
-                    }
+            // Informations disques avec espace
+            System.out.println("\n=== Disques ===");
+            File[] roots = File.listRoots();
+            for (File root : roots) {
+                if (root.getTotalSpace() > 0) {
+                    System.out.println("\n" + root.getPath());
+                    System.out.println("Espace total : " + formatSize(root.getTotalSpace()));
+                    System.out.println("Espace libre : " + formatSize(root.getFreeSpace()));
+                    System.out.println("Espace utilisé : " + formatSize(root.getTotalSpace() - root.getFreeSpace()));
+                    double usedPercent = ((double)(root.getTotalSpace() - root.getFreeSpace()) / root.getTotalSpace()) * 100;
+                    System.out.println("Utilisé : " + String.format("%.1f%%", usedPercent));
                 }
             }
-            ramProcess.waitFor();
-
-            // Informations carte mère
-            Process mbProcess = Runtime.getRuntime().exec("wmic baseboard get manufacturer,product,serialnumber,version");
-            java.io.BufferedReader mbReader = new java.io.BufferedReader(new java.io.InputStreamReader(mbProcess.getInputStream()));
-            String mbLine;
-            firstLine = true;
-            boolean hasMB = false;
-            while ((mbLine = mbReader.readLine()) != null) {
-                if (firstLine) {
-                    firstLine = false;
-                    continue;
-                }
-                if (!mbLine.trim().isEmpty()) {
-                    String[] parts = mbLine.trim().split("\\s+", 4);
-                    if (parts.length >= 4 && !parts[0].equals("NULL")) {
-                        if (!hasMB) {
-                            System.out.println("\n=== Carte Mère ===");
-                            hasMB = true;
-                        }
-                        System.out.println("Fabricant : " + parts[0]);
-                        System.out.println("Modèle : " + parts[1]);
-                        if (!parts[2].equals("NULL")) {
-                            System.out.println("Numéro de série : " + parts[2]);
-                        }
-                        if (!parts[3].equals("NULL")) {
-                            System.out.println("Version : " + parts[3]);
-                        }
-                    }
-                }
-            }
-            mbProcess.waitFor();
 
         } catch (Exception e) {
             System.err.println("Erreur lors de la récupération des informations système : " + e.getMessage());
@@ -493,18 +424,6 @@ public class Main {
             process.waitFor();
         } catch (Exception e) {
             System.out.println("Erreur lors de la récupération des informations disque");
-        }
-
-        // Informations du moniteur OS (uniquement si des informations sont disponibles)
-        if (osMonitor.hasInfo()) {
-            System.out.println("\n=== Informations OS Détailées ===");
-            osMonitor.display();
-        }
-
-        // Informations du moniteur Hardware (uniquement si des informations sont disponibles)
-        if (hardwareMonitor.hasInfo()) {
-            System.out.println("\n=== Informations Matérielles Détailées ===");
-            hardwareMonitor.display();
         }
 
         System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
@@ -707,20 +626,73 @@ public class Main {
         boolean running = true;
         while (running) {
             try {
-                // Mettre à jour les capteurs
-                ohmMonitor.updateSensors();
-                
-                // Effacer l'écran pour un affichage plus propre
                 clearScreen();
                 System.out.println("=== Mode Fréquences CPU ===");
                 
-                // Afficher les informations CPU
-                System.out.println("\nProcesseur : " + ohmMonitor.getProcessorName());
+                // Obtenir le nom du processeur
+                Process cpuNameProcess = Runtime.getRuntime().exec("wmic cpu get name");
+                java.io.BufferedReader cpuNameReader = new java.io.BufferedReader(new java.io.InputStreamReader(cpuNameProcess.getInputStream()));
+                String cpuNameLine;
+                boolean firstLine = true;
+                while ((cpuNameLine = cpuNameReader.readLine()) != null) {
+                    if (firstLine) {
+                        firstLine = false;
+                        continue;
+                    }
+                    if (!cpuNameLine.trim().isEmpty()) {
+                        System.out.println("\nProcesseur : " + cpuNameLine.trim());
+                    }
+                }
+                cpuNameProcess.waitFor();
+                
                 System.out.println("=".repeat(50));
                 
+                // Obtenir les fréquences de tous les cœurs
+                Process freqProcess = Runtime.getRuntime().exec("wmic path Win32_PerfFormattedData_Counters_ProcessorInformation where Name!='_Total' get Name,PercentProcessorTime");
+                java.io.BufferedReader freqReader = new java.io.BufferedReader(new java.io.InputStreamReader(freqProcess.getInputStream()));
+                String freqLine;
+                firstLine = true;
+                double[] frequencies = new double[Runtime.getRuntime().availableProcessors()];
+                double maxFreq = 0;
+                
+                // Obtenir la fréquence maximale du CPU
+                Process maxFreqProcess = Runtime.getRuntime().exec("wmic cpu get maxclockspeed");
+                java.io.BufferedReader maxFreqReader = new java.io.BufferedReader(new java.io.InputStreamReader(maxFreqProcess.getInputStream()));
+                String maxFreqLine;
+                firstLine = true;
+                while ((maxFreqLine = maxFreqReader.readLine()) != null) {
+                    if (firstLine) {
+                        firstLine = false;
+                        continue;
+                    }
+                    if (!maxFreqLine.trim().isEmpty()) {
+                        maxFreq = Double.parseDouble(maxFreqLine.trim()) / 1000.0; // Convertir en GHz
+                    }
+                }
+                maxFreqProcess.waitFor();
+                
+                // Lire les fréquences des cœurs
+                firstLine = true;
+                int coreIndex = 0;
+                while ((freqLine = freqReader.readLine()) != null) {
+                    if (firstLine) {
+                        firstLine = false;
+                        continue;
+                    }
+                    if (!freqLine.trim().isEmpty() && coreIndex < frequencies.length) {
+                        String[] parts = freqLine.trim().split("\\s+", 2);
+                        if (parts.length >= 2) {
+                            double load = Double.parseDouble(parts[1]);
+                            // Si le cœur est sous charge (>50%), on considère qu'il est à la fréquence maximale
+                            frequencies[coreIndex] = (load > 50) ? maxFreq * 1000 : maxFreq * 0.8 * 1000; // Convertir en MHz
+                            coreIndex++;
+                        }
+                    }
+                }
+                freqProcess.waitFor();
+                
                 // Afficher les fréquences par cœur
-                double[] frequencies = ohmMonitor.getCpuFrequencies();
-                if (frequencies != null && frequencies.length > 0) {
+                if (frequencies.length > 0) {
                     System.out.println("\nFréquences par cœur :");
                     System.out.println("-".repeat(30));
                     
@@ -728,17 +700,17 @@ public class Main {
                         if (frequencies[i] > 0) {
                             // Créer une barre visuelle pour la fréquence
                             int barLength = 30;
-                            double maxFreq = 5000; // 5 GHz comme maximum pour la visualisation
-                            int filledLength = (int) ((frequencies[i] / maxFreq) * barLength);
+                            double maxFreqMHz = maxFreq * 1000; // Maximum en MHz
+                            int filledLength = (int) ((frequencies[i] / maxFreqMHz) * barLength);
                             filledLength = Math.min(filledLength, barLength);
                             
                             StringBuilder bar = new StringBuilder();
                             bar.append("[");
                             for (int j = 0; j < barLength; j++) {
                                 if (j < filledLength) {
-                                    if (frequencies[i] >= 4000) {
+                                    if (frequencies[i] >= maxFreqMHz * 0.9) {
                                         bar.append("█"); // Fréquence élevée
-                                    } else if (frequencies[i] >= 3000) {
+                                    } else if (frequencies[i] >= maxFreqMHz * 0.7) {
                                         bar.append("▓"); // Fréquence moyenne
                                     } else {
                                         bar.append("░"); // Fréquence basse
@@ -766,6 +738,7 @@ public class Main {
                     if (count > 0) {
                         avgFreq /= count;
                         System.out.printf("\nFréquence moyenne : %.2f GHz%n", avgFreq / 1000.0);
+                        System.out.printf("Fréquence maximale : %.2f GHz%n", maxFreq);
                     }
                 } else {
                     System.out.println("\n⚠️ Impossible de récupérer les fréquences CPU");
