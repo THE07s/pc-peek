@@ -37,16 +37,18 @@ public class DashboardView extends Main {
 
     public DashboardView() {
         addClassName("dashboard-view");
-        
         // Initialiser les moniteurs système
         initializeMonitors();
+        add(buildMainBoard());
+    }
 
+    private Board buildMainBoard() {
         Board board = new Board();
 
         // Colonne de gauche : image + infos système
         Component leftColumn = createDeviceInfoColumn();
         leftColumn.getElement().getStyle().remove("flex-basis");
-        leftColumn.getElement().getStyle().set("minWidth", "180px").set("maxWidth", "340px");
+        leftColumn.getElement().getStyle().set("minWidth", "180px").set("maxWidth", "450px");
 
         // Colonne de droite : highlights, graphique CPU, jauge température
         VerticalLayout rightColumn = new VerticalLayout();
@@ -56,12 +58,13 @@ public class DashboardView extends Main {
 
         // Highlights (ligne de 4)
         HorizontalLayout highlights = new HorizontalLayout(
-            createHighlight("Charge CPU", String.format("%.1f%%", getCpuLoad()), 0.0),
-            createHighlight("Température CPU", String.format("%.1f°C", getCpuTemperature()), 0.0),
-            createHighlight("Charge GPU", getGpuLoadString(), 0.0),
-            createHighlight("Température GPU", getGpuTemperatureString(), 0.0)
-        );
+                createHighlight("Charge CPU", formatOrNA(getCPULoad(), "%.1f%%"), 0.0),
+                createHighlight("Température CPU", formatOrNA(getCPUTemperature(), "%.1f°C"), 0.0),
+                createHighlight("Charge GPU", formatOrNA(getGPULoad(), "%.1f%%"), 0.0),
+                createHighlight("Température GPU", formatOrNA(getGPUTemperature(), "%.1f°C"), 0.0));
         highlights.setWidthFull();
+        highlights.setSpacing(true);
+        highlights.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
         rightColumn.add(highlights);
 
         // Graphique CPU + RAM usage côte à côte
@@ -69,6 +72,7 @@ public class DashboardView extends Main {
         cpuAndRamRow.setWidthFull();
         cpuAndRamRow.setSpacing(true);
         cpuAndRamRow.setPadding(false);
+        cpuAndRamRow.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
         cpuAndRamRow.add(createCpuLoadChart(), createRamUsageBlock());
         rightColumn.add(cpuAndRamRow);
 
@@ -84,18 +88,10 @@ public class DashboardView extends Main {
         mainRow.setFlexGrow(1, rightColumn);
 
         board.addRow(mainRow);
-        add(board);
+        return board;
     }
 
-    private void initializeMonitors() {
-        try {
-            this.systemMonitor = new SystemMonitor();
-            this.hwMonitor = new HardwareMonitor();
-        } catch (Exception e) {
-            System.err.println("Erreur lors de l'initialisation des moniteurs: " + e.getMessage());
-        }
-    }
-
+    // --- Méthodes de création de composants UI ---
     private Component createHighlight(String title, String value, Double percentage) {
         VaadinIcon icon = VaadinIcon.ARROW_UP;
         String prefix = "";
@@ -129,6 +125,7 @@ public class DashboardView extends Main {
         layout.addClassName(Padding.LARGE);
         layout.setPadding(false);
         layout.setSpacing(false);
+        layout.getStyle().set("flex", "1 1 auto").set("min-width", "200px");
         return layout;
     }
 
@@ -171,22 +168,24 @@ public class DashboardView extends Main {
         ListSeries cpuTempSeries = new ListSeries("Température CPU (°C)");
         cpuTempSeries.setyAxis(1); // Y droit
         conf.addSeries(cpuTempSeries);
+        chart.getElement().getStyle().set("width", "100%");
 
         VerticalLayout layout = new VerticalLayout(header, chart);
         layout.addClassName(Padding.LARGE);
         layout.setPadding(false);
         layout.setSpacing(false);
+        layout.getStyle().set("flex", "1 1 auto").set("min-width", "400px");
         return layout;
     }
 
     // Ajout d'une colonne verticale avec image + infos système
     private Component createDeviceInfoColumn() {
-        // Image placeholder
+        // Image placeholder SVG animé
+        String imageSvg = getDeviceImageSvg();
         com.vaadin.flow.component.html.Image deviceImage = new com.vaadin.flow.component.html.Image(
-            "https://via.placeholder.com/300x300?text=Appareil", "Image appareil");
+                imageSvg, "Image appareil");
         deviceImage.setWidth("300px");
-        deviceImage.setHeight("300px");
-        deviceImage.getStyle().set("display", "block").set("margin", "0 auto 1rem auto");
+        deviceImage.getStyle().set("display", "block").set("margin", "0 auto 1rem auto").setWidth("100%");
 
         Component systemInfo = createSystemInfo();
 
@@ -209,12 +208,11 @@ public class DashboardView extends Main {
                 .setTextAlign(ColumnTextAlign.END);
 
         grid.setItems(
-            new SystemInfoItem("Processeur", getCpuName()),
-            new SystemInfoItem("Fréquence", String.format("%.0f MHz", getCpuFrequency())),
-            new SystemInfoItem("Mémoire Totale", formatBytes(getTotalMemory())),
-            new SystemInfoItem("Mémoire Disponible", formatBytes(getAvailableMemory())),
-            new SystemInfoItem("Système", getOsName())
-        );
+                new SystemInfoItem("Processeur", getCPUName()),
+                new SystemInfoItem("Fréquence", String.format("%.0f MHz", getCPUFrequency())),
+                new SystemInfoItem("Mémoire Totale", formatBytes(getTotalMemory())),
+                new SystemInfoItem("Mémoire Disponible", formatBytes(getAvailableMemory())),
+                new SystemInfoItem("Système", getOSName()));
 
         VerticalLayout layout = new VerticalLayout(header, grid);
         layout.addClassName(Padding.LARGE);
@@ -222,7 +220,6 @@ public class DashboardView extends Main {
         layout.setSpacing(false);
         return layout;
     }
-
 
     // Bloc RAM usage : Active, Résidente, Compressée sous forme de pie chart
     private Component createRamUsageBlock() {
@@ -234,9 +231,9 @@ public class DashboardView extends Main {
         conf.getChart().setStyledMode(true);
 
         DataSeries series = new DataSeries();
-        series.add(new DataSeriesItem("Active", getRamActive()));
-        series.add(new DataSeriesItem("Résidente", getRamResident()));
-        series.add(new DataSeriesItem("Compressée", getRamCompressed()));
+        series.add(new DataSeriesItem("Active", getRAMActive()));
+        series.add(new DataSeriesItem("Résidente", getRAMResident()));
+        series.add(new DataSeriesItem("Compressée", getRAMCompressed()));
         conf.setSeries(series);
 
         PlotOptionsPie options = new PlotOptionsPie();
@@ -247,6 +244,7 @@ public class DashboardView extends Main {
         layout.addClassName(Padding.LARGE);
         layout.setPadding(false);
         layout.setSpacing(false);
+        layout.getStyle().set("flex", "1 1 auto").set("min-width", "300px");
         return layout;
     }
 
@@ -254,28 +252,15 @@ public class DashboardView extends Main {
     private Component createVolumePerAppBlock() {
         HorizontalLayout header = createHeader("Volume par application", "Contrôle individuel");
 
-        Grid<VolumeInfoItem> grid = new Grid<>(VolumeInfoItem.class, false);
-        grid.addThemeVariants(GridVariant.LUMO_NO_BORDER, GridVariant.LUMO_NO_ROW_BORDERS);
-        grid.addColumn(VolumeInfoItem::getApp).setHeader("Application").setFlexGrow(1);
-        grid.addComponentColumn(item -> {
-            com.vaadin.flow.component.html.Input slider = new com.vaadin.flow.component.html.Input();
-            slider.setType("range");
-            slider.getElement().setAttribute("min", "0");
-            slider.getElement().setAttribute("max", "100");
-            slider.setValue(String.valueOf(item.getVolume()));
-            slider.getStyle().set("width", "120px");
-            // Pas d'écouteur natif ici, mais on peut ajouter un ValueChangeListener si besoin
-            return slider;
-        }).setHeader("Volume").setAutoWidth(true);
+        // Placeholder SVG animé pour le volume par application
+        String volumeSvg = getVolumeControlSvg();
+        com.vaadin.flow.component.html.Image volumePlaceholder = new com.vaadin.flow.component.html.Image(
+                volumeSvg, "Volume control placeholder");
+        volumePlaceholder.setWidth("100%");
+        volumePlaceholder.setHeight("200px");
+        volumePlaceholder.getStyle().set("display", "block").set("margin", "1rem auto");
 
-        // Exemple de données fictives (à remplacer par la vraie liste d'apps/volumes)
-        grid.setItems(
-            new VolumeInfoItem("Spotify", 70),
-            new VolumeInfoItem("Chrome", 40),
-            new VolumeInfoItem("Teams", 90)
-        );
-
-        VerticalLayout layout = new VerticalLayout(header, grid);
+        VerticalLayout layout = new VerticalLayout(header, volumePlaceholder);
         layout.addClassName(Padding.LARGE);
         layout.setPadding(false);
         layout.setSpacing(false);
@@ -300,72 +285,14 @@ public class DashboardView extends Main {
         return header;
     }
 
-    // Méthodes d'accès aux données système avec gestion d'erreur
-    private double getCpuLoad() {
-        // À implémenter dynamiquement
-        return 0.0;
-    }
-
-    private double getMemoryUsage() {
-        // À implémenter dynamiquement
-        return 0.0;
-    }
-
-    private double getCpuTemperature() {
-        // À implémenter dynamiquement
-        return 0.0;
-    }
-
-    private int getCpuCores() {
-        // À implémenter dynamiquement
-        return 0;
-    }
-
-    private double[] getCpuLoadPerCore() {
-        // À implémenter dynamiquement
-        return new double[0];
-    }
-
-    private String getCpuName() {
-        // À implémenter dynamiquement
-        return "N/A";
-    }
-
-    private double getCpuFrequency() {
-        // À implémenter dynamiquement
-        return 0.0;
-    }
-
-    private long getTotalMemory() {
-        // À implémenter dynamiquement
-        return 0L;
-    }
-
-    private long getAvailableMemory() {
-        // À implémenter dynamiquement
-        return 0L;
-    }
-
-    private double getGpuLoad() {
-        // À implémenter dynamiquement
-        return 0.0;
-    }
-    private String getGpuLoadString() {
-        // À implémenter dynamiquement
-        return "N/A";
-    }
-    private double getGpuTemperature() {
-        // À implémenter dynamiquement
-        return 0.0;
-    }
-    private String getGpuTemperatureString() {
-        // À implémenter dynamiquement
-        return "N/A";
-    }
-
-    private String getOsName() {
-        // À implémenter dynamiquement
-        return "N/A";
+    // --- Méthodes utilitaires ---
+    private void initializeMonitors() {
+        try {
+            this.systemMonitor = new SystemMonitor();
+            this.hwMonitor = new HardwareMonitor();
+        } catch (Exception e) {
+            System.err.println("Erreur lors de l'initialisation des moniteurs: " + e.getMessage());
+        }
     }
 
     private String formatBytes(long bytes) {
@@ -373,21 +300,19 @@ public class DashboardView extends Main {
         return String.valueOf(bytes);
     }
 
-    // Getters RAM à implémenter dynamiquement
-    private long getRamActive() {
-        // À implémenter dynamiquement
-        return 0L;
-    }
-    private long getRamResident() {
-        // À implémenter dynamiquement
-        return 0L;
-    }
-    private long getRamCompressed() {
-        // À implémenter dynamiquement
-        return 0L;
+    /**
+     * Formate une valeur numérique ou retourne "N/A" si la valeur est nulle ou
+     * négative.
+     */
+    private String formatOrNA(double value, String format) {
+        if (value > 0.0) {
+            return String.format(format, value);
+        } else {
+            return "N/A";
+        }
     }
 
-    // Classe interne pour les éléments d'information système
+    // --- Classes internes ---
     public static class SystemInfoItem {
         private String component;
         private String value;
@@ -406,27 +331,173 @@ public class DashboardView extends Main {
         }
     }
 
-    // Classe interne pour les infos RAM
-    public static class RamInfoItem {
-        private String type;
-        private String value;
-        public RamInfoItem(String type, String value) {
-            this.type = type;
-            this.value = value;
-        }
-        public String getType() { return type; }
-        public String getValue() { return value; }
+    // --- Getters système ---
+    private double getCPULoad() {
+        // À implémenter dynamiquement
+        return 0.0;
     }
 
-    // Classe interne pour les infos de volume par application
-    public static class VolumeInfoItem {
-        private String app;
-        private int volume;
-        public VolumeInfoItem(String app, int volume) {
-            this.app = app;
-            this.volume = volume;
-        }
-        public String getApp() { return app; }
-        public int getVolume() { return volume; }
+    private double getCPUTemperature() {
+        // À implémenter dynamiquement
+        return 0.0;
+    }
+
+    private String getCPUName() {
+        // À implémenter dynamiquement
+        return "N/A";
+    }
+
+    private double getCPUFrequency() {
+        // À implémenter dynamiquement
+        return 0.0;
+    }
+
+    private long getTotalMemory() {
+        // À implémenter dynamiquement
+        return 0L;
+    }
+
+    private long getAvailableMemory() {
+        // À implémenter dynamiquement
+        return 0L;
+    }
+
+    private double getGPULoad() {
+        // À implémenter dynamiquement
+        return 0.0;
+    }
+
+    private double getGPUTemperature() {
+        // À implémenter dynamiquement
+        return 0.0;
+    }
+
+    private String getOSName() {
+        // À implémenter dynamiquement
+        return "N/A";
+    }
+
+    // Getters RAM à implémenter dynamiquement
+    private long getRAMActive() {
+        // À implémenter dynamiquement
+        return 0L;
+    }
+
+    private long getRAMResident() {
+        // À implémenter dynamiquement
+        return 0L;
+    }
+
+    private long getRAMCompressed() {
+        // À implémenter dynamiquement
+        return 0L;
+    }
+
+    // Méthode utilitaire pour créer un placeholder SVG animé
+    private String getDeviceImageSvg() {
+        return "data:image/svg+xml;base64," + java.util.Base64.getEncoder().encodeToString(
+                ("<?xml version='1.0' encoding='UTF-8'?>" +
+                        "<svg width='300' height='300' viewBox='0 0 300 300' xmlns='http://www.w3.org/2000/svg'>" +
+                        "<defs>" +
+                        "<style>" +
+                        ".loading { animation: pulse 2s ease-in-out infinite; }" +
+                        "@keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }" +
+                        ".rotate { animation: rotate 2s linear infinite; transform-origin: 150px 140px; }" +
+                        "@keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }" +
+                        "</style>" +
+                        "</defs>" +
+                        "<rect width='300' height='300' fill='#f8f9fa' stroke='#e9ecef' stroke-width='2' rx='10'/>" +
+                        "<g transform='translate(150,150)'>" +
+                        "<!-- Écran d'ordinateur -->" +
+                        "<rect x='-80' y='-60' width='160' height='100' fill='#343a40' rx='8' class='loading'/>" +
+                        "<rect x='-70' y='-50' width='140' height='80' fill='#495057' rx='4'/>" +
+                        "<rect x='-60' y='-40' width='120' height='60' fill='#6c757d'/>" +
+                        "<!-- Base -->" +
+                        "<rect x='-15' y='40' width='30' height='20' fill='#343a40'/>" +
+                        "<rect x='-40' y='60' width='80' height='8' fill='#343a40' rx='4'/>" +
+                        "</g>" +
+                        "<!-- Icône loading au centre de l'écran -->" +
+                        "<circle cx='150' cy='140' r='17' fill='none' stroke='#007bff' stroke-width='3' opacity='0.3'/>"
+                        +
+                        "<circle cx='150' cy='140' r='17' fill='none' stroke='#007bff' stroke-width='3' " +
+                        "stroke-dasharray='47.12' stroke-dashoffset='35.34' class='rotate'/>" +
+                        "<text x='150' y='270' text-anchor='middle' fill='#6c757d' font-family='Roboto, sans-serif' font-size='14'>"
+                        +
+                        "Future utilisation de l'API Icecat..." +
+                        "</text>" +
+                        "<text x='150' y='80' text-anchor='middle' fill='#6c757d' font-family='Roboto, sans-serif' font-size='14'>"
+                        +
+                        "Image de l'ordinateur" +
+                        "</text>" +
+                        "</svg>").getBytes());
+    }
+
+    // Méthode utilitaire pour créer un placeholder SVG animé pour le volume par
+    // application
+    private String getVolumeControlSvg() {
+        return "data:image/svg+xml;base64," + java.util.Base64.getEncoder().encodeToString(
+                ("<?xml version='1.0' encoding='UTF-8'?>" +
+                        "<svg width='100%' height='200' viewBox='0 0 600 200' xmlns='http://www.w3.org/2000/svg'>" +
+                        "<defs>" +
+                        "<style>" +
+                        ".fade { animation: fadeInOut 3s ease-in-out infinite; }" +
+                        "@keyframes fadeInOut { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }" +
+                        ".slide { animation: slideVolume 4s ease-in-out infinite; }" +
+                        "@keyframes slideVolume { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(10px); } }"
+                        +
+                        ".bounce { animation: bounce 2s ease-in-out infinite; }" +
+                        "@keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }"
+                        +
+                        "</style>" +
+                        "</defs>" +
+                        "<rect width='100%' height='200' fill='#f8f9fa' stroke='#e9ecef' stroke-width='1' rx='8'/>" +
+
+                        "<!-- Application 1: Spotify -->" +
+                        "<g transform='translate(50, 30)'>" +
+                        "<circle cx='15' cy='15' r='12' fill='#1DB954' class='bounce'/>" +
+                        "<path d='M8 10 Q15 6 22 10 Q15 14 8 18 Q15 14 22 18' stroke='white' stroke-width='2' fill='none'/>"
+                        +
+                        "<text x='40' y='20' fill='#343a40' font-family='Roboto, sans-serif' font-size='14'>Spotify</text>"
+                        +
+                        "<rect x='120' y='10' width='200' height='4' fill='#e9ecef' rx='2'/>" +
+                        "<rect x='120' y='10' width='140' height='4' fill='#1DB954' rx='2' class='slide'/>" +
+                        "<circle cx='260' cy='12' r='6' fill='#1DB954' class='slide'/>" +
+                        "<text x='480' y='20' fill='#6c757d' font-family='Roboto, sans-serif' font-size='12'>70%</text>"
+                        +
+                        "</g>" +
+
+                        "<!-- Application 2: Chrome -->" +
+                        "<g transform='translate(50, 80)'>" +
+                        "<circle cx='15' cy='15' r='12' fill='#4285F4' class='bounce'/>" +
+                        "<circle cx='15' cy='15' r='8' fill='white'/>" +
+                        "<circle cx='15' cy='15' r='5' fill='#4285F4'/>" +
+                        "<text x='40' y='20' fill='#343a40' font-family='Roboto, sans-serif' font-size='14'>Chrome</text>"
+                        +
+                        "<rect x='120' y='10' width='200' height='4' fill='#e9ecef' rx='2'/>" +
+                        "<rect x='120' y='10' width='80' height='4' fill='#4285F4' rx='2' class='slide'/>" +
+                        "<circle cx='200' cy='12' r='6' fill='#4285F4' class='slide'/>" +
+                        "<text x='480' y='20' fill='#6c757d' font-family='Roboto, sans-serif' font-size='12'>40%</text>"
+                        +
+                        "</g>" +
+
+                        "<!-- Application 3: Teams -->" +
+                        "<g transform='translate(50, 130)'>" +
+                        "<rect x='3' y='3' width='24' height='24' fill='#6264A7' rx='4' class='bounce'/>" +
+                        "<path d='M12 8 L20 8 L20 16 L12 16 Z M8 12 L12 12 L12 20 L8 20 Z' fill='white'/>" +
+                        "<text x='40' y='20' fill='#343a40' font-family='Roboto, sans-serif' font-size='14'>Teams</text>"
+                        +
+                        "<rect x='120' y='10' width='200' height='4' fill='#e9ecef' rx='2'/>" +
+                        "<rect x='120' y='10' width='180' height='4' fill='#6264A7' rx='2' class='slide'/>" +
+                        "<circle cx='300' cy='12' r='6' fill='#6264A7' class='slide'/>" +
+                        "<text x='480' y='20' fill='#6c757d' font-family='Roboto, sans-serif' font-size='12'>90%</text>"
+                        +
+                        "</g>" +
+
+                        "<!-- Texte d'indication -->" +
+                        "<text x='300' y='185' text-anchor='middle' fill='#6c757d' font-family='Roboto, sans-serif' font-size='13' class='fade'>"
+                        +
+                        "Contrôles de volume individuels - À implémenter" +
+                        "</text>" +
+                        "</svg>").getBytes());
     }
 }
