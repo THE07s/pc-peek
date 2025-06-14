@@ -1,4 +1,4 @@
-package com.pcpeek.src;
+package com.pcpeek;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

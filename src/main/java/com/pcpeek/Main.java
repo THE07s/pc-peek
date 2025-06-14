@@ -1,4 +1,5 @@
-package com.pcpeek;// src/Main.java
+package com.pcpeek;
+
 import java.util.Scanner;
 import java.io.IOException;
 import java.io.File;
@@ -50,7 +51,7 @@ public class Main {
         // Vérifier le système d'exploitation
         if (!osMonitor.isCompatibleOS()) {
             System.out.println("\n⚠️ ATTENTION: OpenHardwareMonitor n'est pas compatible avec votre système d'exploitation.");
-            System.out.println("OpenHardwareMonitor est un programme Windows (.exe) qui ne fonctionne que sur Windows.");
+            System.out.println("OpenHardwareMonitor est un programme (.exe) qui ne fonctionne que sur Windows.");
             System.out.println("\nSystème détecté: " + System.getProperty("os.name"));
             System.out.println("Le mode Temps Réel (RT) n'est pas disponible sur votre système.");
             System.out.println("Veuillez utiliser le mode Statique à la place.");
