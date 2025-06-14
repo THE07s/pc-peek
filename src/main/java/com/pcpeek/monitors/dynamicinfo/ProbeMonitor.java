@@ -37,7 +37,7 @@ public class ProbeMonitor {
         try {
             // Se connecter à OpenHardwareMonitor via COM
             Class<?> ohmClass = Class.forName(OHM_SENSOR_CLASS);
-            ohmHardware = ohmClass.newInstance();
+            ohmHardware = ohmClass.getDeclaredConstructor().newInstance();
         } catch (Exception e) {
             System.err.println("Erreur lors de l'initialisation des capteurs OHM: " + e.getMessage());
         }
