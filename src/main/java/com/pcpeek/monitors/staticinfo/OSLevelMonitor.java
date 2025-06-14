@@ -1,4 +1,4 @@
-package com.pcpeek.monitors.static_;
+package com.pcpeek.monitors.staticinfo;
 
 import java.util.Map;
 import java.util.HashMap;

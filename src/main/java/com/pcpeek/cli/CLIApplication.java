@@ -1,8 +1,8 @@
 package com.pcpeek.cli;
 
 import com.pcpeek.SystemData;
-import com.pcpeek.monitors.static_.OSLevelMonitor;
-import com.pcpeek.monitors.static_.HardwareLevelMonitor;
+import com.pcpeek.monitors.staticinfo.OSLevelMonitor;
+import com.pcpeek.monitors.staticinfo.HardwareLevelMonitor;
 import java.util.Scanner;
 
 public class CLIApplication {

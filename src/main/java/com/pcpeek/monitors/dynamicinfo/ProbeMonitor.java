@@ -1,4 +1,4 @@
-package com.pcpeek.monitors.dynamic;
+package com.pcpeek.monitors.dynamicinfo;
 
 import oshi.SystemInfo;
 import oshi.hardware.CentralProcessor;

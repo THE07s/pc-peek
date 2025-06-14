@@ -1,8 +1,8 @@
 package com.pcpeek.cli.modes;
 
 import com.pcpeek.SystemData;
-import com.pcpeek.monitors.dynamic.ProbeMonitor;
-import com.pcpeek.monitors.dynamic.ResourceMonitor;
+import com.pcpeek.monitors.dynamicinfo.ProbeMonitor;
+import com.pcpeek.monitors.dynamicinfo.ResourceMonitor;
 
 import java.util.Scanner;
 
