@@ -1,7 +1,6 @@
 package com.pcpeek.views;
 
-import com.pcpeek.SystemMonitor;
-import com.pcpeek.HardwareMonitor;
+import com.pcpeek.SystemData;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.board.Board;
 import com.vaadin.flow.component.charts.Chart;
@@ -32,8 +31,7 @@ import com.vaadin.flow.theme.lumo.LumoUtility.TextColor;
 @Menu(order = 0, icon = "la la-chart-area")
 public class DashboardView extends Main {
 
-    private SystemMonitor systemMonitor;
-    private HardwareMonitor hwMonitor;
+    private SystemData systemData;
 
     public DashboardView() {
         addClassName("dashboard-view");
@@ -257,8 +255,7 @@ public class DashboardView extends Main {
         com.vaadin.flow.component.html.Image volumePlaceholder = new com.vaadin.flow.component.html.Image(
                 volumeSvg, "Volume control placeholder");
         volumePlaceholder.setWidth("100%");
-        volumePlaceholder.setHeight("200px");
-        volumePlaceholder.getStyle().set("display", "block").set("margin", "1rem auto");
+        volumePlaceholder.getStyle().set("display", "block").set("margin", "1rem auto").setFlexGrow("1");
 
         VerticalLayout layout = new VerticalLayout(header, volumePlaceholder);
         layout.addClassName(Padding.LARGE);
@@ -288,10 +285,9 @@ public class DashboardView extends Main {
     // --- Méthodes utilitaires ---
     private void initializeMonitors() {
         try {
-            this.systemMonitor = new SystemMonitor();
-            this.hwMonitor = new HardwareMonitor();
+            this.systemData = new SystemData();
         } catch (Exception e) {
-            System.err.println("Erreur lors de l'initialisation des moniteurs: " + e.getMessage());
+            System.err.println("Erreur lors de l'initialisation du système de données: " + e.getMessage());
         }
     }
 

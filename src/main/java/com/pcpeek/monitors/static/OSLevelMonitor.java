@@ -1,22 +1,18 @@
-package com.pcpeek;
+package com.pcpeek.monitors.static_;
 
 import java.util.Map;
 import java.util.HashMap;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 
-/**
- * Moniteur système qui hérite de Monitor pour gérer les informations système de base
- */
-public class SystemMonitor extends Monitor {
+public class OSLevelMonitor {
     private static final String[] WMIC_COMMANDS = {
         "wmic os get caption,version,osarchitecture,serialnumber",
         "wmic computersystem get model,manufacturer,systemtype",
         "wmic path win32_operatingsystem get caption,version,osarchitecture,serialnumber,licensedatetime"
     };
 
-    @Override
-    protected Map<String, Object> initializeSystemInfo() {
+    public Map<String, Object> getSystemInfo() {
         Map<String, Object> info = new HashMap<>();
         if (!isCompatibleOS()) {
             info.put("error", "Système d'exploitation non supporté");
@@ -41,13 +37,32 @@ public class SystemMonitor extends Monitor {
         return info;
     }
 
-    @Override
-    protected void performUpdate() {
-        // Les informations système sont statiques, pas besoin de mise à jour
+    public boolean isCompatibleOS() {
+        String osName = System.getProperty("os.name").toLowerCase();
+        return osName.contains("windows");
     }
 
-    @Override
-    protected void displayContent() {
+    private void processSystemInfo(String line, Map<String, Object> info) {
+        if (line.contains("Caption")) {
+            info.put("os.caption", line.split("Caption")[1].trim());
+        } else if (line.contains("Version")) {
+            info.put("os.version", line.split("Version")[1].trim());
+        } else if (line.contains("OSArchitecture")) {
+            info.put("os.architecture", line.split("OSArchitecture")[1].trim());
+        } else if (line.contains("SerialNumber")) {
+            info.put("os.serial", line.split("SerialNumber")[1].trim());
+        } else if (line.contains("LicenseDateTime")) {
+            info.put("os.license", line.split("LicenseDateTime")[1].trim());
+        } else if (line.contains("Model")) {
+            info.put("system.model", line.split("Model")[1].trim());
+        } else if (line.contains("Manufacturer")) {
+            info.put("system.manufacturer", line.split("Manufacturer")[1].trim());
+        } else if (line.contains("SystemType")) {
+            info.put("system.type", line.split("SystemType")[1].trim());
+        }
+    }
+
+    public void displaySystemInfo(Map<String, Object> systemInfo) {
         if (systemInfo.containsKey("error")) {
             System.out.println("Erreur : " + systemInfo.get("error"));
             return;
@@ -83,31 +98,6 @@ public class SystemMonitor extends Monitor {
         }
         if (systemInfo.containsKey("system.type")) {
             System.out.println("Type : " + systemInfo.get("system.type"));
-        }
-    }
-
-    @Override
-    protected String getMonitorName() {
-        return "Moniteur Système";
-    }
-
-    private void processSystemInfo(String line, Map<String, Object> info) {
-        if (line.contains("Caption")) {
-            info.put("os.caption", line.split("Caption")[1].trim());
-        } else if (line.contains("Version")) {
-            info.put("os.version", line.split("Version")[1].trim());
-        } else if (line.contains("OSArchitecture")) {
-            info.put("os.architecture", line.split("OSArchitecture")[1].trim());
-        } else if (line.contains("SerialNumber")) {
-            info.put("os.serial", line.split("SerialNumber")[1].trim());
-        } else if (line.contains("LicenseDateTime")) {
-            info.put("os.license", line.split("LicenseDateTime")[1].trim());
-        } else if (line.contains("Model")) {
-            info.put("system.model", line.split("Model")[1].trim());
-        } else if (line.contains("Manufacturer")) {
-            info.put("system.manufacturer", line.split("Manufacturer")[1].trim());
-        } else if (line.contains("SystemType")) {
-            info.put("system.type", line.split("SystemType")[1].trim());
         }
     }
 }

@@ -1,4 +1,4 @@
-package com.pcpeek;
+package com.pcpeek.monitors.dynamic;
 
 import oshi.SystemInfo;
 import oshi.hardware.CentralProcessor;
@@ -6,8 +6,10 @@ import oshi.hardware.GlobalMemory;
 import oshi.hardware.HardwareAbstractionLayer;
 import oshi.hardware.Sensors;
 import java.lang.reflect.Method;
+import java.util.Map;
+import java.util.HashMap;
 
-public class OHMMonitor {
+public class ProbeMonitor {
     private SystemInfo systemInfo;
     private HardwareAbstractionLayer hardware;
     private CentralProcessor processor;
@@ -16,7 +18,7 @@ public class OHMMonitor {
     private Object ohmHardware;
     private static final String OHM_SENSOR_CLASS = "OpenHardwareMonitorLib.Hardware";
 
-    public OHMMonitor() {
+    public ProbeMonitor() {
         try {
             systemInfo = new SystemInfo();
             hardware = systemInfo.getHardware();
@@ -27,7 +29,7 @@ public class OHMMonitor {
             // Initialiser les capteurs OHM
             initializeOHMSensors();
         } catch (Exception e) {
-            System.err.println("Erreur lors de l'initialisation d'OHMMonitor: " + e.getMessage());
+            System.err.println("Erreur lors de l'initialisation de ProbeMonitor: " + e.getMessage());
         }
     }
 
@@ -41,20 +43,115 @@ public class OHMMonitor {
         }
     }
 
+    public Map<String, Object> getProbeInfo() {
+        Map<String, Object> probeInfo = new HashMap<>();
+        
+        try {
+            // Températures
+            probeInfo.put("cpu_temperature", getCpuTemperature());
+            probeInfo.put("gpu_temperature", getGpuTemperature());
+            
+            // Charges
+            double[] cpuLoads = getCpuLoadPerCore();
+            if (cpuLoads != null) {
+                probeInfo.put("cpu_loads_per_core", cpuLoads);
+                double avgLoad = 0;
+                for (double load : cpuLoads) {
+                    avgLoad += load;
+                }
+                probeInfo.put("cpu_load_avg", avgLoad / cpuLoads.length);
+            }
+            probeInfo.put("gpu_load", getGpuLoad());
+            
+            // Mémoire
+            probeInfo.put("total_memory", getTotalMemory());
+            probeInfo.put("available_memory", getAvailableMemory());
+            
+            // Ventilateurs
+            int[] fanSpeeds = getFanSpeeds();
+            if (fanSpeeds != null) {
+                probeInfo.put("fan_speeds", fanSpeeds);
+            }
+            
+            // Nom du processeur
+            probeInfo.put("processor_name", getProcessorName());
+            
+        } catch (Exception e) {
+            System.err.println("Erreur lors de la collecte des sondes: " + e.getMessage());
+            probeInfo.put("error", "Erreur lors de la collecte des données");
+        }
+        
+        return probeInfo;
+    }
+
     public void updateSensors() {
         // Rien à faire ici, OSHI met à jour automatiquement
     }
 
-    public void display() {
-        if (!connect()) {
-            System.out.println("Erreur de connexion aux capteurs système");
+    public void displayProbeInfo(Map<String, Object> probeInfo) {
+        if (probeInfo.containsKey("error")) {
+            System.out.println("Erreur : " + probeInfo.get("error"));
             return;
         }
+        
         try {
             System.out.println("\n=== Capteurs Système ===");
             System.out.println("\nCPU:");
-            System.out.println("  Modèle: " + processor.getProcessorIdentifier().getName());
-            System.out.println("  Température CPU: " + String.format("%.1f°C", getCpuTemperature()));
+            if (probeInfo.containsKey("processor_name")) {
+                System.out.println("  Modèle: " + probeInfo.get("processor_name"));
+            }
+            if (probeInfo.containsKey("cpu_temperature")) {
+                double temp = (Double) probeInfo.get("cpu_temperature");
+                if (temp > 0) {
+                    System.out.println("  Température CPU: " + String.format("%.1f°C", temp));
+                }
+            }
+            if (probeInfo.containsKey("cpu_load_avg")) {
+                double load = (Double) probeInfo.get("cpu_load_avg");
+                System.out.println("  Charge moyenne CPU: " + String.format("%.1f%%", load * 100));
+            }
+            
+            // GPU
+            System.out.println("\nGPU:");
+            if (probeInfo.containsKey("gpu_temperature")) {
+                double gpuTemp = (Double) probeInfo.get("gpu_temperature");
+                if (gpuTemp > 0) {
+                    System.out.println("  Température GPU: " + String.format("%.1f°C", gpuTemp));
+                }
+            }
+            if (probeInfo.containsKey("gpu_load")) {
+                double gpuLoad = (Double) probeInfo.get("gpu_load");
+                if (gpuLoad > 0) {
+                    System.out.println("  Charge GPU: " + String.format("%.1f%%", gpuLoad));
+                }
+            }
+            
+            // Mémoire
+            System.out.println("\nMémoire:");
+            if (probeInfo.containsKey("total_memory") && probeInfo.containsKey("available_memory")) {
+                long total = (Long) probeInfo.get("total_memory");
+                long available = (Long) probeInfo.get("available_memory");
+                long used = total - available;
+                double usage = (double) used / total * 100;
+                
+                System.out.println("  Totale: " + formatSize(total));
+                System.out.println("  Utilisée: " + formatSize(used) + String.format(" (%.1f%%)", usage));
+                System.out.println("  Disponible: " + formatSize(available));
+            }
+            
+            // Ventilateurs
+            if (probeInfo.containsKey("fan_speeds")) {
+                int[] fanSpeeds = (int[]) probeInfo.get("fan_speeds");
+                if (fanSpeeds != null && fanSpeeds.length > 0) {
+                    System.out.println("\nVentilateurs:");
+                    for (int i = 0; i < fanSpeeds.length; i++) {
+                        if (fanSpeeds[i] > 0) {
+                            System.out.println("  Ventilateur " + (i + 1) + ": " + fanSpeeds[i] + " RPM");
+                        }
+                    }
+                }
+            }
+            
         } catch (Exception e) {
             System.err.println("Erreur lors de l'affichage des capteurs: " + e.getMessage());
         }
@@ -84,10 +181,6 @@ public class OHMMonitor {
         }
     }
 
-    /**
-     * Récupère la charge CPU par cœur
-     * @return Un tableau contenant la charge de chaque cœur (0.0 à 1.0)
-     */
     public double[] getCpuLoadPerCore() {
         try {
             long[] prevTicks = processor.getSystemCpuLoadTicks();
@@ -119,34 +212,18 @@ public class OHMMonitor {
         return null;
     }
 
-    /**
-     * Récupère la mémoire totale du système
-     * @return La mémoire totale en octets
-     */
     public long getTotalMemory() {
         return memory.getTotal();
     }
 
-    /**
-     * Récupère la mémoire disponible du système
-     * @return La mémoire disponible en octets
-     */
     public long getAvailableMemory() {
         return memory.getAvailable();
     }
 
-    /**
-     * Récupère les vitesses des ventilateurs
-     * @return Un tableau contenant les vitesses en RPM, ou null si non disponible
-     */
     public int[] getFanSpeeds() {
         return sensors.getFanSpeeds();
     }
 
-    /**
-     * Récupère la température du GPU
-     * @return La température en degrés Celsius, ou -1 si non disponible
-     */
     public double getGpuTemperature() {
         try {
             if (ohmHardware != null) {
@@ -183,10 +260,6 @@ public class OHMMonitor {
         return -1;
     }
 
-    /**
-     * Récupère la charge du GPU
-     * @return La charge en pourcentage (0.0 à 100.0), ou -1 si non disponible
-     */
     public double getGpuLoad() {
         try {
             if (ohmHardware != null) {
@@ -222,4 +295,11 @@ public class OHMMonitor {
         }
         return -1;
     }
-} 
+
+    private String formatSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        int exp = (int) (Math.log(bytes) / Math.log(1024));
+        String pre = "KMGTPE".charAt(exp-1) + "";
+        return String.format("%.1f %sB", bytes / Math.pow(1024, exp), pre);
+    }
+}

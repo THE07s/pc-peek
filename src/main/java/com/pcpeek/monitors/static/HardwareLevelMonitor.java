@@ -1,14 +1,11 @@
-package com.pcpeek;
+package com.pcpeek.monitors.static_;
 
 import java.util.Map;
 import java.util.HashMap;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 
-/**
- * Moniteur matériel qui hérite de Monitor pour gérer les informations sur le matériel
- */
-public class HardwareMonitor extends Monitor {
+public class HardwareLevelMonitor {
     private static final String[] WMIC_COMMANDS = {
         "wmic cpu get name,numberofcores,numberoflogicalprocessors,currentclockspeed,maxclockspeed",
         "wmic memorychip get capacity,speed,manufacturer,partnumber",
@@ -16,8 +13,7 @@ public class HardwareMonitor extends Monitor {
         "wmic baseboard get manufacturer,product,version,serialnumber"
     };
 
-    @Override
-    protected Map<String, Object> initializeSystemInfo() {
+    public Map<String, Object> getSystemInfo() {
         Map<String, Object> info = new HashMap<>();
         if (!isCompatibleOS()) {
             info.put("error", "Système d'exploitation non supporté");
@@ -42,30 +38,24 @@ public class HardwareMonitor extends Monitor {
         return info;
     }
 
-    @Override
-    protected void performUpdate() {
-        // Les informations matérielles sont statiques, pas besoin de mise à jour
+    public boolean isCompatibleOS() {
+        String osName = System.getProperty("os.name").toLowerCase();
+        return osName.contains("windows");
     }
 
-    @Override
-    protected void displayContent() {
+    public void displayHardwareInfo(Map<String, Object> systemInfo) {
         if (systemInfo.containsKey("error")) {
             System.out.println("Erreur : " + systemInfo.get("error"));
             return;
         }
 
-        displayCPUInfo();
-        displayMemoryInfo();
-        displayDiskInfo();
-        displayMotherboardInfo();
+        displayCPUInfo(systemInfo);
+        displayMemoryInfo(systemInfo);
+        displayDiskInfo(systemInfo);
+        displayMotherboardInfo(systemInfo);
     }
 
-    @Override
-    protected String getMonitorName() {
-        return "Moniteur Matériel";
-    }
-
-    private void displayCPUInfo() {
+    private void displayCPUInfo(Map<String, Object> systemInfo) {
         System.out.println("\nProcesseur :");
         System.out.println("------------");
         if (systemInfo.containsKey("cpu.name")) {
@@ -85,7 +75,7 @@ public class HardwareMonitor extends Monitor {
         }
     }
 
-    private void displayMemoryInfo() {
+    private void displayMemoryInfo(Map<String, Object> systemInfo) {
         System.out.println("\nMémoire :");
         System.out.println("---------");
         if (systemInfo.containsKey("memory.total")) {
@@ -102,7 +92,7 @@ public class HardwareMonitor extends Monitor {
         }
     }
 
-    private void displayDiskInfo() {
+    private void displayDiskInfo(Map<String, Object> systemInfo) {
         System.out.println("\nDisques :");
         System.out.println("---------");
         if (systemInfo.containsKey("disk.model")) {
@@ -119,7 +109,7 @@ public class HardwareMonitor extends Monitor {
         }
     }
 
-    private void displayMotherboardInfo() {
+    private void displayMotherboardInfo(Map<String, Object> systemInfo) {
         System.out.println("\nCarte mère :");
         System.out.println("------------");
         if (systemInfo.containsKey("board.manufacturer")) {
@@ -176,7 +166,10 @@ public class HardwareMonitor extends Monitor {
         }
     }
 
-    public boolean hasInfo() {
-        return systemInfo != null && !systemInfo.isEmpty();
+    private String formatSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        int exp = (int) (Math.log(bytes) / Math.log(1024));
+        String pre = "KMGTPE".charAt(exp-1) + "";
+        return String.format("%.1f %sB", bytes / Math.pow(1024, exp), pre);
     }
-} 
+}

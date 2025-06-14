@@ -1,4 +1,4 @@
-package com.pcpeek;
+package com.pcpeek.monitors;
 
 import java.util.Map;
 import java.util.HashMap;

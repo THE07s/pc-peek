@@ -1,14 +1,11 @@
-package com.pcpeek;
+package com.pcpeek.monitors.dynamic;
 
 import java.util.Map;
 import java.util.HashMap;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 
-/**
- * Moniteur système d'exploitation qui hérite de Monitor pour gérer les informations sur l'OS
- */
-public class OSMonitor extends Monitor {
+public class ResourceMonitor {
     private static final String[] WMIC_COMMANDS = {
         "wmic os get freephysicalmemory,totalvisiblememorysize",
         "wmic cpu get loadpercentage",
@@ -16,8 +13,7 @@ public class OSMonitor extends Monitor {
         "wmic path win32_operatingsystem get systemuptime"
     };
 
-    @Override
-    protected Map<String, Object> initializeSystemInfo() {
+    public Map<String, Object> getResourceInfo() {
         Map<String, Object> info = new HashMap<>();
         if (!isCompatibleOS()) {
             info.put("error", "Système d'exploitation non supporté");
@@ -44,13 +40,12 @@ public class OSMonitor extends Monitor {
         return info;
     }
 
-    @Override
-    protected void performUpdate() {
-        // Les informations OS sont statiques, pas besoin de mise à jour
+    public boolean isCompatibleOS() {
+        String osName = System.getProperty("os.name").toLowerCase();
+        return osName.contains("windows");
     }
 
-    @Override
-    protected void displayContent() {
+    public void displayResourceInfo(Map<String, Object> systemInfo) {
         if (systemInfo.containsKey("error")) {
             System.out.println("Erreur : " + systemInfo.get("error"));
             return;
@@ -67,24 +62,22 @@ public class OSMonitor extends Monitor {
         }
 
         // Affichage de la charge CPU globale
-        displayCPUUsage();
+        displayCPUUsage(systemInfo);
+        
+        // Affichage de la mémoire
+        displayMemoryUsage(systemInfo);
         
         // Affichage des fréquences
-        displayFrequencies();
+        displayFrequencies(systemInfo);
         
         // Affichage des cœurs
-        displayCores();
+        displayCores(systemInfo);
         
         // Affichage de la température
-        displayTemperature();
+        displayTemperature(systemInfo);
     }
 
-    @Override
-    protected String getMonitorName() {
-        return "Moniteur OS";
-    }
-
-    private void displayMemoryUsage() {
+    private void displayMemoryUsage(Map<String, Object> systemInfo) {
         System.out.println("\nUtilisation de la mémoire :");
         System.out.println("-------------------------");
         
@@ -105,7 +98,7 @@ public class OSMonitor extends Monitor {
         }
     }
 
-    private void displayCPUUsage() {
+    private void displayCPUUsage(Map<String, Object> systemInfo) {
         int cpuLoad = (Integer) systemInfo.getOrDefault("cpu.load", 0);
         double cpuUsage = cpuLoad / 100.0;
         
@@ -114,7 +107,7 @@ public class OSMonitor extends Monitor {
             createProgressBar(cpuUsage, 30));
     }
 
-    private void displayFrequencies() {
+    private void displayFrequencies(Map<String, Object> systemInfo) {
         System.out.println("\nFréquences :");
         System.out.println("------------");
         if (systemInfo.containsKey("cpu.current.speed")) {
@@ -125,7 +118,7 @@ public class OSMonitor extends Monitor {
         }
     }
 
-    private void displayCores() {
+    private void displayCores(Map<String, Object> systemInfo) {
         System.out.println("\nCœurs :");
         System.out.println("-------");
         if (systemInfo.containsKey("cpu.cores")) {
@@ -136,7 +129,7 @@ public class OSMonitor extends Monitor {
         }
     }
 
-    private void displayTemperature() {
+    private void displayTemperature(Map<String, Object> systemInfo) {
         if (systemInfo.containsKey("cpu.temperature")) {
             double temp = (Double) systemInfo.get("cpu.temperature");
             String tempLevel = temp > 80 ? "CRITIQUE" : temp > 70 ? "ÉLEVÉE" : "NORMALE";
@@ -197,7 +190,37 @@ public class OSMonitor extends Monitor {
         return uptime.toString().trim();
     }
 
-    public boolean hasInfo() {
-        return systemInfo != null && !systemInfo.isEmpty();
+    // Méthodes utilitaires déplacées depuis Monitor
+    private String formatSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        int exp = (int) (Math.log(bytes) / Math.log(1024));
+        String pre = "KMGTPE".charAt(exp-1) + "";
+        return String.format("%.1f %sB", bytes / Math.pow(1024, exp), pre);
     }
-} 
+
+    private String formatPercentage(double value) {
+        return String.format("%.1f%%", value * 100);
+    }
+
+    private String createProgressBar(double value, int length) {
+        int filled = (int) (value * length);
+        filled = Math.max(0, Math.min(filled, length));
+        
+        StringBuilder bar = new StringBuilder("[");
+        for (int i = 0; i < length; i++) {
+            if (i < filled) {
+                if (value >= 0.9) {
+                    bar.append("█");
+                } else if (value >= 0.7) {
+                    bar.append("▓");
+                } else {
+                    bar.append("░");
+                }
+            } else {
+                bar.append(" ");
+            }
+        }
+        bar.append("]");
+        return bar.toString();
+    }
+}
