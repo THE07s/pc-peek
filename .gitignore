@@ -30,4 +30,3 @@ target/
 out/
 src/main/frontend/generated/
 **/.DS_Store
-src/main/frontend/generated/**
