@@ -38,7 +38,7 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
     private void showMenu(Scanner scanner) {
         while (running) {
             clearScreen();
-            System.out.println("=== Mode Température ===");
+            System.out.println("=== Mode Diagnostic ===");
             System.out.println("1. État actuel");
             System.out.println("2. Analyse détaillée");
             System.out.println("3. Retour au menu principal");
@@ -53,13 +53,7 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
         }
     }
 
-    private void showCurrentState(Scanner scanner) {
-        clearScreen();
-        System.out.println("=== État Actuel ===");
-        updateMetrics();
-        displayMetrics();
-        waitForEnter(scanner);
-    }    private void updateMetrics() {
+    public void updateMetrics() {
         // Mettre à jour les données système
         updateSystemData();
         
@@ -75,7 +69,7 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
             loadHistory.poll();
         }
     }
-    
+
     private void updateSystemData() {
         // Mise à jour de la température CPU
         double cpuTemp = hal.getSensors().getCpuTemperature();
@@ -130,7 +124,15 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
         }
     }
 
-    private void showDetailedAnalysis(Scanner scanner) {
+    public void showCurrentState(Scanner scanner) {
+        clearScreen();
+        System.out.println("=== État Actuel ===");
+        updateMetrics();
+        displayMetrics();
+        waitForEnter(scanner);
+    }
+
+    public void showDetailedAnalysis(Scanner scanner) {
         clearScreen();
         System.out.println("=== Analyse Détaillée ===");
         System.out.println("\nCollecte des données en cours...");
@@ -164,7 +166,7 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
         System.out.printf("Écart type: %.2f°C\n", stdDev);
         
         boolean isWorrisome = false;
-          if (currentTemp >= TEMP_CRITICAL) {
+        if (currentTemp >= TEMP_CRITICAL) {
             System.out.println("\nTEMPERATURE CRITIQUE!");
             System.out.println("DANGER: Risque de dommages materiels immediats");
             isWorrisome = true;
@@ -174,13 +176,15 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
             isWorrisome = true;
         }
         
-        double deviationFromMean = currentTemp - mean;        if (deviationFromMean > stdDev * 2) {
+        double deviationFromMean = currentTemp - mean;
+        if (deviationFromMean > VAR_EXTREME) {
             System.out.println("\nTEMPERATURE ANORMALEMENT HAUTE");
             System.out.printf("Ecart par rapport a la moyenne: +%.1f°C\n", deviationFromMean);
             isWorrisome = true;
         }
         
-        double maxVariation = calculateMaxVariation(temps);        if (maxVariation > VAR_EXTREME && currentTemp > mean) {
+        double maxVariation = calculateMaxVariation(temps);
+        if (maxVariation > VAR_EXTREME && currentTemp > mean) {
             System.out.println("\nVARIATIONS EXTREMES");
             System.out.printf("Variation: %.1f°C/seconde\n", maxVariation);
             System.out.println("DANGER: Risque de surchauffe rapide");
@@ -190,7 +194,8 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
             System.out.printf("Variation: %.1f°C/seconde\n", maxVariation);
             isWorrisome = true;
         }
-          if (stdDev > STD_DEV_CRITICAL && currentTemp > mean) {
+        
+        if (stdDev > STD_DEV_CRITICAL && currentTemp > mean) {
             System.out.println("\nINSTABILITE CRITIQUE");
             System.out.println("DANGER: Fluctuations dangereuses vers le haut");
             isWorrisome = true;
@@ -200,7 +205,8 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
             isWorrisome = true;
         }
         
-        System.out.println("\n=== Tendance ===");        double trend = calculateSimpleTrend(temps);
+        System.out.println("\n=== Tendance ===");
+        double trend = calculateSimpleTrend(temps);
         if (trend > TREND_CRITICAL) {
             System.out.println("AUGMENTATION TRES RAPIDE");
             isWorrisome = true;
@@ -235,14 +241,14 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
         waitForEnter(scanner);
     }
 
-    private double calculateMean(List<Double> values) {
+    public double calculateMean(List<Double> values) {
         return values.stream()
                 .mapToDouble(Double::doubleValue)
                 .average()
                 .orElse(0.0);
     }
 
-    private double calculateVariance(List<Double> values) {
+    public double calculateVariance(List<Double> values) {
         double mean = calculateMean(values);
         return values.stream()
                 .mapToDouble(v -> Math.pow(v - mean, 2))

@@ -39,11 +39,11 @@ public class CLIMenuHandler {
         }
     }
 
-    private void displayMenu() {
+    public void displayMenu() {
         System.out.println("\n=== PC-Peek ===");
         System.out.println("1. Mode Statique (snapshot complet)");
         System.out.println("2. Mode Real Time (informations dynamiques)");
-        System.out.println("3. Mode Températures (affichage en temps réel)");
+        System.out.println("3. Mode Diagnostic (analyse système)");
         System.out.println("4. Quitter");
         System.out.print("\nVotre choix : ");
     }
