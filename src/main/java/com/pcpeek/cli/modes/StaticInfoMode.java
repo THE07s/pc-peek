@@ -211,7 +211,15 @@ public class StaticInfoMode {
     }
 
     private void displayCollectedInfo() {
-        // Affichage des informations GPU
+        // Informations CPU
+        System.out.println("\n=== Processeur ===");
+        systemData.getCpuName().ifPresent(name -> 
+            System.out.println("Modèle : " + name));
+        System.out.println("Cœurs physiques : " + systemData.getCpuCores());
+        System.out.println("Cœurs logiques : " + systemData.getCpuThreads());
+
+        // Informations GPU
+        System.out.println("\n=== Cartes Graphiques ===");
         try {
             Process gpuProcess = Runtime.getRuntime().exec("wmic path win32_VideoController get name");
             java.io.BufferedReader gpuReader = new java.io.BufferedReader(new java.io.InputStreamReader(gpuProcess.getInputStream()));
@@ -224,19 +232,44 @@ public class StaticInfoMode {
                     continue;
                 }
                 if (!gpuLine.trim().isEmpty()) {
-                    if (!hasGPU) {
-                        System.out.println("\n=== Cartes Graphiques ===");
-                        hasGPU = true;
-                    }
+                    hasGPU = true;
                     System.out.println(gpuLine.trim());
                 }
             }
+            if (!hasGPU) {
+                System.out.println("Aucune carte graphique détectée");
+            }
             gpuProcess.waitFor();
         } catch (Exception e) {
-            System.err.println("Erreur GPU : " + e.getMessage());
+            System.out.println("Erreur GPU : " + e.getMessage());
         }
 
-        // Affichage des disques
+        // Informations RAM
+        System.out.println("\n=== Mémoire RAM ===");
+        long totalMemory = systemData.getTotalMemory().orElse(0L);
+        long usedMemory = totalMemory - Runtime.getRuntime().freeMemory();
+        System.out.println("Mémoire totale : " + formatSize(totalMemory));
+        System.out.println("Mémoire utilisée : " + formatSize(usedMemory));
+        System.out.println("Mémoire libre : " + formatSize(Runtime.getRuntime().freeMemory()));
+        double ramUsagePercent = totalMemory > 0 ? ((double)usedMemory / totalMemory) * 100 : 0;
+        System.out.println("Utilisation : " + String.format("%.1f%%", ramUsagePercent));
+        
+        // Barre de progression RAM
+        int barLength = 30;
+        int filledLength = (int) (ramUsagePercent * barLength / 100);
+        StringBuilder bar = new StringBuilder();
+        bar.append("[");
+        for (int i = 0; i < barLength; i++) {
+            if (i < filledLength) {
+                bar.append("█");
+            } else {
+                bar.append(" ");
+            }
+        }
+        bar.append("]");
+        System.out.println(bar.toString());
+
+        // Informations Disques
         System.out.println("\n=== Disques ===");
         File[] roots = File.listRoots();
         for (File root : roots) {
@@ -247,10 +280,56 @@ public class StaticInfoMode {
                 System.out.println("Espace utilisé : " + formatSize(root.getTotalSpace() - root.getFreeSpace()));
                 double usedPercent = ((double)(root.getTotalSpace() - root.getFreeSpace()) / root.getTotalSpace()) * 100;
                 System.out.println("Utilisé : " + String.format("%.1f%%", usedPercent));
+                
+                // Barre de progression disque
+                barLength = 30;
+                filledLength = (int) (usedPercent * barLength / 100);
+                bar = new StringBuilder();
+                bar.append("[");
+                for (int i = 0; i < barLength; i++) {
+                    if (i < filledLength) {
+                        bar.append("█");
+                    } else {
+                        bar.append(" ");
+                    }
+                }
+                bar.append("]");
+                System.out.println(bar.toString());
             }
         }
 
-        // État d'activation Windows depuis SystemData
+        // Informations Réseau
+        System.out.println("\n=== Réseau ===");
+        try {
+            java.net.InetAddress localHost = java.net.InetAddress.getLocalHost();
+            System.out.println("Nom d'hôte : " + localHost.getHostName());
+            
+            final boolean[] hasNetworkInterfaces = {false};
+            java.net.NetworkInterface.getNetworkInterfaces().asIterator().forEachRemaining(ni -> {
+                try {
+                    if (ni.isUp() && !ni.isLoopback()) {
+                        hasNetworkInterfaces[0] = true;
+                        System.out.println("\nInterface : " + ni.getDisplayName());
+                        System.out.println("  Nom : " + ni.getName());
+                        System.out.println("  Adresse MAC : " + formatMAC(ni.getHardwareAddress()));
+                        ni.getInetAddresses().asIterator().forEachRemaining(addr -> {
+                            if (!addr.isLoopbackAddress() && !addr.getHostAddress().startsWith("169.254.")) {
+                                System.out.println("  Adresse IP : " + addr.getHostAddress());
+                            }
+                        });
+                    }
+                } catch (Exception e) {
+                    // Ignorer les erreurs sur les interfaces individuelles
+                }
+            });
+            if (!hasNetworkInterfaces[0]) {
+                System.out.println("Aucune interface réseau active détectée");
+            }
+        } catch (Exception e) {
+            System.out.println("Erreur lors de la récupération des informations réseau");
+        }
+
+        // État d'activation Windows
         if (isCompatibleOS()) {
             System.out.println("\n=== État d'Activation Windows ===");
             systemData.getOsCaption().ifPresentOrElse(
@@ -306,46 +385,16 @@ public class StaticInfoMode {
                 System.out.println("Impossible de récupérer les informations de la batterie");
             }
         }
+    }
 
-        // Informations réseau
-        System.out.println("\n=== Informations Réseau ===");
+    private void displayPerformanceInfo() {
+        System.out.println("\n=== Performances Système ===");
         try {
-            java.net.InetAddress localHost = java.net.InetAddress.getLocalHost();
-            System.out.println("Nom d'hôte : " + localHost.getHostName());
-            
-            final boolean[] hasNetworkInterfaces = {false};
-            java.net.NetworkInterface.getNetworkInterfaces().asIterator().forEachRemaining(ni -> {
-                try {
-                    if (ni.isUp() && !ni.isLoopback()) {
-                        hasNetworkInterfaces[0] = true;
-                        System.out.println("\nInterface : " + ni.getDisplayName());
-                        System.out.println("  Nom : " + ni.getName());
-                        System.out.println("  Adresse MAC : " + formatMAC(ni.getHardwareAddress()));
-                        ni.getInetAddresses().asIterator().forEachRemaining(addr -> {
-                            if (!addr.isLoopbackAddress() && !addr.getHostAddress().startsWith("169.254.")) {
-                                System.out.println("  Adresse IP : " + addr.getHostAddress());
-                            }
-                        });
-                    }
-                } catch (Exception e) {
-                    // Ignorer les erreurs sur les interfaces individuelles
-                }
-            });
-            if (!hasNetworkInterfaces[0]) {
-                System.out.println("Aucune interface réseau active détectée");
-            }
-        } catch (Exception e) {
-            System.out.println("Erreur lors de la récupération des informations réseau");
-        }
-
-        // Informations détaillées sur les disques
-        System.out.println("\n=== Disques Détaillés ===");
-        try {
+            // Score de performance Windows
             ProcessBuilder pb = new ProcessBuilder(
-                "wmic",
-                "diskdrive",
-                "get",
-                "model,size,status"
+                "powershell",
+                "-Command",
+                "Get-WmiObject -Class Win32_WinSAT | Select-Object CPUScore,MemoryScore,DiskScore,GraphicsScore"
             );
             pb.redirectErrorStream(true);
             Process process = pb.start();
@@ -356,34 +405,222 @@ public class StaticInfoMode {
             
             String line;
             boolean firstLine = true;
-            boolean hasDisks = false;
             while ((line = reader.readLine()) != null) {
                 if (firstLine) {
                     firstLine = false;
                     continue;
                 }
                 if (!line.trim().isEmpty()) {
-                    String[] parts = line.trim().split("\\s+", 3);
-                    if (parts.length >= 3 && !parts[0].equals("NULL")) {
-                        hasDisks = true;
-                        System.out.println("\n" + parts[0]);
-                        try {
-                            long size = Long.parseLong(parts[1]);
-                            if (size > 0) {
-                                System.out.println("Taille : " + formatSize(size));
-                            }
-                        } catch (NumberFormatException e) {
-                            // Ignorer si la taille n'est pas disponible
-                        }
-                        if (!parts[2].equals("NULL")) {
-                            System.out.println("État : " + parts[2]);
-                        }
+                    String[] scores = line.trim().split("\\s+");
+                    if (scores.length >= 4) {
+                        System.out.println("Score CPU : " + scores[0]);
+                        System.out.println("Score Mémoire : " + scores[1]);
+                        System.out.println("Score Disque : " + scores[2]);
+                        System.out.println("Score Graphique : " + scores[3]);
                     }
                 }
             }
             process.waitFor();
         } catch (Exception e) {
-            System.out.println("Erreur lors de la récupération des informations disque");
+            System.out.println("Impossible de récupérer les scores de performance");
+        }
+    }
+
+    private void displaySecurityInfo() {
+        System.out.println("\n=== Sécurité ===");
+        try {
+            // État de l'antivirus
+            ProcessBuilder pb = new ProcessBuilder(
+                "powershell",
+                "-Command",
+                "Get-WmiObject -Namespace root/SecurityCenter2 -Class AntiVirusProduct | Select-Object displayName,productState"
+            );
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            
+            java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(process.getInputStream())
+            );
+            
+            String line;
+            boolean firstLine = true;
+            boolean hasAntivirus = false;
+            while ((line = reader.readLine()) != null) {
+                if (firstLine) {
+                    firstLine = false;
+                    continue;
+                }
+                if (!line.trim().isEmpty()) {
+                    hasAntivirus = true;
+                    String[] parts = line.trim().split("\\s+", 2);
+                    if (parts.length >= 2) {
+                        System.out.println("Antivirus : " + parts[0]);
+                        System.out.println("État : " + (parts[1].contains("1") ? "Actif" : "Inactif"));
+                    }
+                }
+            }
+            if (!hasAntivirus) {
+                System.out.println("Aucun antivirus détecté");
+            }
+            process.waitFor();
+        } catch (Exception e) {
+            System.out.println("Impossible de récupérer les informations de sécurité");
+        }
+    }
+
+    private void displayDeviceInfo() {
+        System.out.println("\n=== Périphériques ===");
+        try {
+            // Périphériques USB
+            ProcessBuilder pb = new ProcessBuilder(
+                "powershell",
+                "-Command",
+                "Get-WmiObject Win32_USBHub | Select-Object Name,Status"
+            );
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            
+            java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(process.getInputStream())
+            );
+            
+            String line;
+            boolean firstLine = true;
+            boolean hasUSB = false;
+            while ((line = reader.readLine()) != null) {
+                if (firstLine) {
+                    firstLine = false;
+                    continue;
+                }
+                if (!line.trim().isEmpty()) {
+                    hasUSB = true;
+                    String[] parts = line.trim().split("\\s+", 2);
+                    if (parts.length >= 2) {
+                        System.out.println("USB : " + parts[0]);
+                        System.out.println("État : " + parts[1]);
+                    }
+                }
+            }
+            if (!hasUSB) {
+                System.out.println("Aucun périphérique USB détecté");
+            }
+            process.waitFor();
+        } catch (Exception e) {
+            System.out.println("Impossible de récupérer les informations des périphériques");
+        }
+    }
+
+    private void displayNetworkInfo() {
+        System.out.println("\n=== Réseau ===");
+        try {
+            // Informations réseau détaillées
+            ProcessBuilder pb = new ProcessBuilder(
+                "powershell",
+                "-Command",
+                "Get-NetAdapter | Where-Object Status -eq 'Up' | Select-Object Name,InterfaceDescription,LinkSpeed"
+            );
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            
+            java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(process.getInputStream())
+            );
+            
+            String line;
+            boolean firstLine = true;
+            boolean hasNetwork = false;
+            while ((line = reader.readLine()) != null) {
+                if (firstLine) {
+                    firstLine = false;
+                    continue;
+                }
+                if (!line.trim().isEmpty()) {
+                    hasNetwork = true;
+                    String[] parts = line.trim().split("\\s+", 3);
+                    if (parts.length >= 3) {
+                        System.out.println("\nInterface : " + parts[0]);
+                        System.out.println("Description : " + parts[1]);
+                        System.out.println("Vitesse : " + parts[2]);
+                    }
+                }
+            }
+            if (!hasNetwork) {
+                System.out.println("Aucune interface réseau active");
+            }
+            process.waitFor();
+        } catch (Exception e) {
+            System.out.println("Impossible de récupérer les informations réseau");
+        }
+    }
+
+    private void displayStorageInfo() {
+        System.out.println("\n=== Stockage ===");
+        File[] roots = File.listRoots();
+        for (File root : roots) {
+            if (root.getTotalSpace() > 0) {
+                System.out.println("\n" + root.getPath());
+                System.out.println("Espace total : " + formatSize(root.getTotalSpace()));
+                System.out.println("Espace libre : " + formatSize(root.getFreeSpace()));
+                System.out.println("Espace utilisé : " + formatSize(root.getTotalSpace() - root.getFreeSpace()));
+                double usedPercent = ((double)(root.getTotalSpace() - root.getFreeSpace()) / root.getTotalSpace()) * 100;
+                System.out.println("Utilisé : " + String.format("%.1f%%", usedPercent));
+                
+                // Barre de progression
+                int barLength = 30;
+                int filledLength = (int) (usedPercent * barLength / 100);
+                StringBuilder bar = new StringBuilder();
+                bar.append("[");
+                for (int i = 0; i < barLength; i++) {
+                    if (i < filledLength) {
+                        bar.append("█");
+                    } else {
+                        bar.append(" ");
+                    }
+                }
+                bar.append("]");
+                System.out.println(bar.toString());
+            }
+        }
+    }
+
+    private void displayWindowsInfo() {
+        if (isCompatibleOS()) {
+            System.out.println("\n=== Windows ===");
+            try {
+                // Informations Windows détaillées
+                ProcessBuilder pb = new ProcessBuilder(
+                    "powershell",
+                    "-Command",
+                    "Get-WmiObject -Class Win32_OperatingSystem | Select-Object LastBootUpTime,InstallDate,Version"
+                );
+                pb.redirectErrorStream(true);
+                Process process = pb.start();
+                
+                java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(process.getInputStream())
+                );
+                
+                String line;
+                boolean firstLine = true;
+                while ((line = reader.readLine()) != null) {
+                    if (firstLine) {
+                        firstLine = false;
+                        continue;
+                    }
+                    if (!line.trim().isEmpty()) {
+                        String[] parts = line.trim().split("\\s+", 3);
+                        if (parts.length >= 3) {
+                            System.out.println("Dernier démarrage : " + parts[0]);
+                            System.out.println("Date d'installation : " + parts[1]);
+                            System.out.println("Version : " + parts[2]);
+                        }
+                    }
+                }
+                process.waitFor();
+            } catch (Exception e) {
+                System.out.println("Impossible de récupérer les informations Windows");
+            }
         }
     }
 }
+

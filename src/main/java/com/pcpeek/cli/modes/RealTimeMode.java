@@ -26,31 +26,19 @@ public class RealTimeMode {
 
     private double getCpuLoad() {
         CentralProcessor processor = hardware.getProcessor();
+        long[] prevTicks = processor.getSystemCpuLoadTicks();
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
         long[] ticks = processor.getSystemCpuLoadTicks();
-        
-        // Calculer la différence entre les ticks actuels et précédents
         long user = ticks[CentralProcessor.TickType.USER.getIndex()] - prevTicks[CentralProcessor.TickType.USER.getIndex()];
         long nice = ticks[CentralProcessor.TickType.NICE.getIndex()] - prevTicks[CentralProcessor.TickType.NICE.getIndex()];
         long sys = ticks[CentralProcessor.TickType.SYSTEM.getIndex()] - prevTicks[CentralProcessor.TickType.SYSTEM.getIndex()];
         long idle = ticks[CentralProcessor.TickType.IDLE.getIndex()] - prevTicks[CentralProcessor.TickType.IDLE.getIndex()];
-        long iowait = ticks[CentralProcessor.TickType.IOWAIT.getIndex()] - prevTicks[CentralProcessor.TickType.IOWAIT.getIndex()];
-        long irq = ticks[CentralProcessor.TickType.IRQ.getIndex()] - prevTicks[CentralProcessor.TickType.IRQ.getIndex()];
-        long softirq = ticks[CentralProcessor.TickType.SOFTIRQ.getIndex()] - prevTicks[CentralProcessor.TickType.SOFTIRQ.getIndex()];
-        long steal = ticks[CentralProcessor.TickType.STEAL.getIndex()] - prevTicks[CentralProcessor.TickType.STEAL.getIndex()];
-        
-        // Sauvegarder les ticks actuels pour la prochaine itération
-        System.arraycopy(ticks, 0, prevTicks, 0, ticks.length);
-        
-        // Calculer le total des ticks
-        long totalCpu = user + nice + sys + idle + iowait + irq + softirq + steal;
-        
-        // Éviter la division par zéro
-        if (totalCpu == 0) {
-            return 0.0;
-        }
-        
-        // Calculer le pourcentage d'utilisation
-        return (double) (totalCpu - idle) / totalCpu * 100.0;
+        long totalCpu = user + nice + sys + idle;
+        return totalCpu > 0 ? 100.0 * (totalCpu - idle) / totalCpu : 0.0;
     }
 
     public void execute(Scanner scanner) {
@@ -230,11 +218,11 @@ public class RealTimeMode {
         for (int i = 0; i < barLength; i++) {
             if (i < filledLength) {
                 if (percentage >= 80) {
-                    bar.append("█");
+                    bar.append("#");
                 } else if (percentage >= 50) {
-                    bar.append("▓");
+                    bar.append("=");
                 } else {
-                    bar.append("░");
+                    bar.append("-");
                 }
             } else {
                 bar.append(" ");
@@ -255,11 +243,11 @@ public class RealTimeMode {
         for (int j = 0; j < tempBarLength; j++) {
             if (j < tempFilledLength) {
                 if (temperature >= 80) {
-                    tempBar.append("█"); // Rouge pour température élevée
+                    tempBar.append("#"); // Rouge pour température élevée
                 } else if (temperature >= 60) {
-                    tempBar.append("▓"); // Orange pour température moyenne
+                    tempBar.append("="); // Orange pour température moyenne
                 } else {
-                    tempBar.append("░"); // Vert pour température normale
+                    tempBar.append("-"); // Vert pour température normale
                 }
             } else {
                 tempBar.append(" ");

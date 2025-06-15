@@ -38,7 +38,7 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
     private void showMenu(Scanner scanner) {
         while (running) {
             clearScreen();
-            System.out.println("=== Mode Température ===");
+            System.out.println("=== Mode Diagnostic ===");
             System.out.println("1. État actuel");
             System.out.println("2. Analyse détaillée");
             System.out.println("3. Retour au menu principal");
@@ -165,11 +165,11 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
         
         boolean isWorrisome = false;
           if (currentTemp >= TEMP_CRITICAL) {
-            System.out.println("\nTEMPERATURE CRITIQUE!");
+            System.out.println("\n[ALERTE CRITIQUE] TEMPERATURE CRITIQUE!");
             System.out.println("DANGER: Risque de dommages materiels immediats");
             isWorrisome = true;
         } else if (currentTemp >= TEMP_HIGH) {
-            System.out.println("\nTEMPERATURE ELEVEE");
+            System.out.println("\n[ALERTE] TEMPERATURE ELEVEE");
             System.out.println("ATTENTION: Risque de surchauffe");
             isWorrisome = true;
         }

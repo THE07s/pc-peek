@@ -134,12 +134,10 @@ public class ResourceMonitor extends Monitor {
         if (systemInfo.containsKey("cpu.temperature")) {
             double temp = (Double) systemInfo.get("cpu.temperature");
             String tempLevel = temp > 80 ? "CRITIQUE" : temp > 70 ? "ÉLEVÉE" : "NORMALE";
-            String color = temp > 80 ? "\033[31m" : temp > 70 ? "\033[33m" : "\033[32m";
-            System.out.printf("\nTempérature CPU : %.1f°C %s%s\033[0m%n",
+            System.out.printf("\nTempérature CPU : %.1f°C %s%n",
                     temp,
-                    color,
                     createProgressBar(temp / 100.0, 20));
-            System.out.printf("Niveau : %s%s\033[0m%n", color, tempLevel);
+            System.out.printf("Niveau : %s%n", tempLevel);
         }
     }
 

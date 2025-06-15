@@ -26,7 +26,8 @@ public class CLIApplication {
     }
 
     public void run() {
-        System.out.println("🖥️  Mode Console Activé");
+        System.out.println("=== PC-Peek ===");
+        System.out.println("Mode Console Activé");
         System.out.println("Initialisation des moniteurs système...\n");
 
         Scanner scanner = new Scanner(System.in);
