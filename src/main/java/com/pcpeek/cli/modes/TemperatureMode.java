@@ -1,8 +1,17 @@
 package com.pcpeek.cli.modes;
 
+import com.pcpeek.SystemData;
+import com.pcpeek.monitors.dynamicinfo.ProbeMonitor;
 import java.util.Scanner;
 
 public class TemperatureMode {
+    private final SystemData systemData;
+    private final ProbeMonitor probeMonitor;
+
+    public TemperatureMode(SystemData systemData) {
+        this.systemData = systemData;
+        this.probeMonitor = new ProbeMonitor();
+    }
 
     public void execute(Scanner scanner) {
         clearScreen();
@@ -37,94 +46,50 @@ public class TemperatureMode {
                 display.append("=== Mode Températures ===\n");
                 display.append("Appuyez sur Entrée pour revenir au menu...\n\n");
                 
-                // CPU (simulation car nous n'avons pas OpenHardwareMonitor)
-                double cpuTemp = simulateCpuTemperature();
+                // Mettre à jour SystemData avec les données des capteurs
+                try {
+                    systemData.updateDynamicData(probeMonitor.getProbeInfo());
+                } catch (Exception e) {
+                    display.append("Erreur lors de la récupération des températures: ").append(e.getMessage()).append("\n");
+                }
+                
+                // Température CPU depuis SystemData ou simulation
                 display.append("=== CPU ===\n");
-                display.append(String.format("Température: %.1f°C\n", cpuTemp));
-                
-                // Barre de température CPU
-                int barLength = 30;
-                int filledLength = (int) ((cpuTemp / 100.0) * barLength);
-                filledLength = Math.min(filledLength, barLength);
-                filledLength = Math.max(filledLength, 0);
-                
-                StringBuilder tempBar = new StringBuilder();
-                tempBar.append("[");
-                for (int i = 0; i < barLength; i++) {
-                    if (i < filledLength) {
-                        if (cpuTemp >= 80) {
-                            tempBar.append("█"); // Rouge pour température élevée
-                        } else if (cpuTemp >= 60) {
-                            tempBar.append("▓"); // Orange pour température moyenne
-                        } else {
-                            tempBar.append("░"); // Vert pour température normale
-                        }
-                    } else {
-                        tempBar.append(" ");
+                systemData.getCpuTemperature().ifPresentOrElse(
+                    cpuTemp -> {
+                        display.append(String.format("Température: %.1f°C\n", cpuTemp));
+                        addTemperatureBar(display, cpuTemp, "CPU");
+                        addTemperatureAdvice(display, cpuTemp, "CPU");
+                    },
+                    () -> {
+                        double cpuTemp = simulateCpuTemperature();
+                        display.append(String.format("Température (simulée): %.1f°C\n", cpuTemp));
+                        addTemperatureBar(display, cpuTemp, "CPU");
+                        addTemperatureAdvice(display, cpuTemp, "CPU");
                     }
-                }
-                tempBar.append("]");
-                display.append("  ").append(tempBar.toString()).append("\n");
+                );
                 
-                // Indicateurs de température CPU
-                if (cpuTemp >= 80) {
-                    display.append("  ⚠️  ATTENTION: Température élevée!\n");
-                    display.append("  Recommandations:\n");
-                    display.append("  - Vérifiez le refroidissement\n");
-                    display.append("  - Nettoyez les ventilateurs\n");
-                    display.append("  - Vérifiez la pâte thermique\n");
-                } else if (cpuTemp >= 60) {
-                    display.append("  ℹ️  Température normale sous charge\n");
-                } else {
-                    display.append("  ✓ Température normale\n");
-                }
-                
-                // GPU (simulation)
-                double gpuTemp = simulateGpuTemperature();
-                if (gpuTemp > 0) {
-                    display.append("\n=== GPU ===\n");
-                    display.append(String.format("Température: %.1f°C\n", gpuTemp));
-                    
-                    // Barre de température GPU
-                    filledLength = (int) ((gpuTemp / 100.0) * barLength);
-                    filledLength = Math.min(filledLength, barLength);
-                    filledLength = Math.max(filledLength, 0);
-                    
-                    tempBar = new StringBuilder();
-                    tempBar.append("[");
-                    for (int i = 0; i < barLength; i++) {
-                        if (i < filledLength) {
-                            if (gpuTemp >= 80) {
-                                tempBar.append("█");
-                            } else if (gpuTemp >= 60) {
-                                tempBar.append("▓");
-                            } else {
-                                tempBar.append("░");
-                            }
-                        } else {
-                            tempBar.append(" ");
-                        }
+                // GPU (température depuis SystemData ou simulation)
+                display.append("\n=== GPU ===\n");
+                systemData.getGpuTemperature().ifPresentOrElse(
+                    gpuTemp -> {
+                        display.append(String.format("Température: %.1f°C\n", gpuTemp));
+                        addTemperatureBar(display, gpuTemp, "GPU");
+                        addTemperatureAdvice(display, gpuTemp, "GPU");
+                    },
+                    () -> {
+                        double gpuTemp = simulateGpuTemperature();
+                        display.append(String.format("Température (simulée): %.1f°C\n", gpuTemp));
+                        addTemperatureBar(display, gpuTemp, "GPU");
+                        addTemperatureAdvice(display, gpuTemp, "GPU");
                     }
-                    tempBar.append("]");
-                    display.append("  ").append(tempBar.toString()).append("\n");
-                    
-                    // Indicateurs de température GPU
-                    if (gpuTemp >= 80) {
-                        display.append("  ⚠️  ATTENTION: Température élevée!\n");
-                        display.append("  Recommandations:\n");
-                        display.append("  - Vérifiez le refroidissement\n");
-                        display.append("  - Nettoyez les ventilateurs\n");
-                        display.append("  - Réduisez la charge graphique\n");
-                    } else if (gpuTemp >= 60) {
-                        display.append("  ℹ️  Température normale sous charge\n");
-                    } else {
-                        display.append("  ✓ Température normale\n");
-                    }
-                }
+                );
                 
-                // Simulation ventilateurs
+                // Simulation ventilateurs (utilise les valeurs actuelles ou simulées)
                 display.append("\n=== Ventilateurs ===\n");
-                int[] fanSpeeds = simulateFanSpeeds(cpuTemp, gpuTemp);
+                double currentCpuTemp = systemData.getCpuTemperature().orElse(simulateCpuTemperature());
+                double currentGpuTemp = systemData.getGpuTemperature().orElse(simulateGpuTemperature());
+                int[] fanSpeeds = simulateFanSpeeds(currentCpuTemp, currentGpuTemp);
                 for (int i = 0; i < fanSpeeds.length; i++) {
                     if (fanSpeeds[i] > 0) {
                         display.append(String.format("Ventilateur %d: %d RPM\n", i + 1, fanSpeeds[i]));
@@ -210,6 +175,45 @@ public class TemperatureMode {
             for (int i = 0; i < 50; i++) {
                 System.out.println();
             }
+        }
+    }
+    
+    private void addTemperatureBar(StringBuilder display, double temperature, String component) {
+        int barLength = 30;
+        int filledLength = (int) ((temperature / 100.0) * barLength);
+        filledLength = Math.min(filledLength, barLength);
+        filledLength = Math.max(filledLength, 0);
+        
+        StringBuilder tempBar = new StringBuilder();
+        tempBar.append("[");
+        for (int i = 0; i < barLength; i++) {
+            if (i < filledLength) {
+                if (temperature >= 80) {
+                    tempBar.append("█"); // Rouge pour température élevée
+                } else if (temperature >= 60) {
+                    tempBar.append("▓"); // Orange pour température moyenne
+                } else {
+                    tempBar.append("░"); // Vert pour température normale
+                }
+            } else {
+                tempBar.append(" ");
+            }
+        }
+        tempBar.append("]");
+        display.append("  ").append(tempBar.toString()).append("\n");
+    }
+
+    private void addTemperatureAdvice(StringBuilder display, double temperature, String component) {
+        if (temperature >= 80) {
+            display.append("  ⚠️  ATTENTION: Température élevée!\n");
+            display.append("  Recommandations:\n");
+            display.append("  - Vérifiez le refroidissement\n");
+            display.append("  - Nettoyez les ventilateurs\n");
+            display.append("  - Vérifiez la pâte thermique\n");
+        } else if (temperature >= 60) {
+            display.append("  ℹ️  Température normale sous charge\n");
+        } else {
+            display.append("  ✓ Température normale\n");
         }
     }
 }

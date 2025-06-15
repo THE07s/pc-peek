@@ -25,6 +25,17 @@ import com.vaadin.flow.theme.lumo.LumoUtility.FontWeight;
 import com.vaadin.flow.theme.lumo.LumoUtility.Margin;
 import com.vaadin.flow.theme.lumo.LumoUtility.Padding;
 import com.vaadin.flow.theme.lumo.LumoUtility.TextColor;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Timer;
+import java.util.TimerTask;
+import com.vaadin.flow.component.UI;
+import java.util.Arrays;
+import java.util.stream.Collectors;
+
+import static com.pcpeek.SystemData.formatBytes;
+import static com.pcpeek.SystemData.formatOrNA;
+import static com.pcpeek.SystemData.formatUptime;
 
 @PageTitle("PC Peek Dashboard")
 @Route("")
@@ -32,69 +43,67 @@ import com.vaadin.flow.theme.lumo.LumoUtility.TextColor;
 public class DashboardView extends Main {
 
     private SystemData systemData;
+    private Timer updateTimer;
+    private UI ui;
+    private Grid<SystemInfoItem> systemInfoGrid;
+    private Chart ramChart;
+    private Component cpuLoadChartComponent;
+    private Chart cpuLoadChart;
+    private HorizontalLayout highlightsLayout;
+    private Component ramUsageBlock;
+    private Component volumePerAppBlock;
 
     public DashboardView() {
         addClassName("dashboard-view");
-        // Initialiser les moniteurs système
+        this.ui = UI.getCurrent();
         initializeMonitors();
         add(buildMainBoard());
+        startPeriodicUpdate();
     }
 
     private Board buildMainBoard() {
         Board board = new Board();
-
-        // Colonne de gauche : image + infos système
         Component leftColumn = createDeviceInfoColumn();
         leftColumn.getElement().getStyle().remove("flex-basis");
         leftColumn.getElement().getStyle().set("minWidth", "180px").set("maxWidth", "450px");
-
-        // Colonne de droite : highlights, graphique CPU, jauge température
         VerticalLayout rightColumn = new VerticalLayout();
         rightColumn.setPadding(false);
         rightColumn.setSpacing(false);
         rightColumn.setWidthFull();
-
-        // Highlights (ligne de 4)
-        HorizontalLayout highlights = new HorizontalLayout(
+        highlightsLayout = new HorizontalLayout(
                 createHighlight("Charge CPU", formatOrNA(getCPULoad(), "%.1f%%"), 0.0),
                 createHighlight("Température CPU", formatOrNA(getCPUTemperature(), "%.1f°C"), 0.0),
                 createHighlight("Charge GPU", formatOrNA(getGPULoad(), "%.1f%%"), 0.0),
                 createHighlight("Température GPU", formatOrNA(getGPUTemperature(), "%.1f°C"), 0.0));
-        highlights.setWidthFull();
-        highlights.setSpacing(true);
-        highlights.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
-        rightColumn.add(highlights);
-
-        // Graphique CPU + RAM usage côte à côte
+        highlightsLayout.setWidthFull();
+        highlightsLayout.setSpacing(true);
+        highlightsLayout.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
+        rightColumn.add(highlightsLayout);
         HorizontalLayout cpuAndRamRow = new HorizontalLayout();
         cpuAndRamRow.setWidthFull();
         cpuAndRamRow.setSpacing(true);
         cpuAndRamRow.setPadding(false);
         cpuAndRamRow.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
-        cpuAndRamRow.add(createCpuLoadChart(), createRamUsageBlock());
+        cpuLoadChartComponent = createCpuLoadChart();
+        ramUsageBlock = createRamUsageBlock();
+        cpuAndRamRow.add(cpuLoadChartComponent, ramUsageBlock);
         rightColumn.add(cpuAndRamRow);
-
-        // Contrôle du volume par application (sous le bloc CPU+RAM)
-        rightColumn.add(createVolumePerAppBlock());
-
-        // Utilisation d'un HorizontalLayout pour avoir une colonne gauche moins large
+        volumePerAppBlock = createVolumePerAppBlock();
+        rightColumn.add(volumePerAppBlock);
         HorizontalLayout mainRow = new HorizontalLayout(leftColumn, rightColumn);
         mainRow.setWidthFull();
         mainRow.setSpacing(false);
         mainRow.setPadding(false);
         mainRow.setFlexGrow(0, leftColumn);
         mainRow.setFlexGrow(1, rightColumn);
-
         board.addRow(mainRow);
         return board;
     }
 
-    // --- Méthodes de création de composants UI ---
     private Component createHighlight(String title, String value, Double percentage) {
         VaadinIcon icon = VaadinIcon.ARROW_UP;
         String prefix = "";
         String theme = "badge";
-
         if (percentage == 0) {
             icon = VaadinIcon.MINUS;
             theme = "badge contrast";
@@ -106,19 +115,14 @@ public class DashboardView extends Main {
             icon = VaadinIcon.ARROW_DOWN;
             theme = "badge error";
         }
-
         H2 h2 = new H2(title);
         h2.addClassNames(FontWeight.NORMAL, Margin.NONE, TextColor.SECONDARY, FontSize.XSMALL);
-
         Span span = new Span(value);
         span.addClassNames(FontWeight.SEMIBOLD, FontSize.XXXLARGE);
-
         Icon i = icon.create();
         i.addClassNames(BoxSizing.BORDER, Padding.XSMALL);
-
         Span badge = new Span(i, new Span(prefix + percentage.toString()));
         badge.getElement().getThemeList().add(theme);
-
         VerticalLayout layout = new VerticalLayout(h2, span, badge);
         layout.addClassName(Padding.LARGE);
         layout.setPadding(false);
@@ -128,47 +132,33 @@ public class DashboardView extends Main {
     }
 
     private Component createCpuLoadChart() {
-        // Header
         HorizontalLayout header = createHeader("CPU Load & Temps", "Temps réel");
-
-        // Chart
-        Chart chart = new Chart(ChartType.LINE);
-        Configuration conf = chart.getConfiguration();
+        cpuLoadChart = new Chart(ChartType.LINE);
+        Configuration conf = cpuLoadChart.getConfiguration();
         conf.getChart().setStyledMode(true);
-
-        // Axe X : le temps (sera alimenté dynamiquement)
         XAxis xAxis = new XAxis();
         xAxis.setTitle("Temps");
         conf.addxAxis(xAxis);
-
-        // Axe Y gauche : Charge CPU (%)
         YAxis yAxisLeft = new YAxis();
         yAxisLeft.setTitle("Charge CPU (%)");
         yAxisLeft.setMin(0);
         yAxisLeft.setMax(100);
         yAxisLeft.setOpposite(false);
         conf.addyAxis(yAxisLeft);
-
-        // Axe Y droit : Température CPU (°C)
         YAxis yAxisRight = new YAxis();
         yAxisRight.setTitle("Température CPU (°C)");
         yAxisRight.setMin(0);
         yAxisRight.setMax(120);
         yAxisRight.setOpposite(true);
         conf.addyAxis(yAxisRight);
-
-        // Série 1 : Charge CPU (sera alimentée dynamiquement)
         ListSeries cpuLoadSeries = new ListSeries("Charge CPU (%)");
-        cpuLoadSeries.setyAxis(0); // Y gauche
+        cpuLoadSeries.setyAxis(0);
         conf.addSeries(cpuLoadSeries);
-
-        // Série 2 : Température CPU (sera alimentée dynamiquement)
         ListSeries cpuTempSeries = new ListSeries("Température CPU (°C)");
-        cpuTempSeries.setyAxis(1); // Y droit
+        cpuTempSeries.setyAxis(1);
         conf.addSeries(cpuTempSeries);
-        chart.getElement().getStyle().set("width", "100%");
-
-        VerticalLayout layout = new VerticalLayout(header, chart);
+        cpuLoadChart.getElement().getStyle().set("width", "100%");
+        VerticalLayout layout = new VerticalLayout(header, cpuLoadChart);
         layout.addClassName(Padding.LARGE);
         layout.setPadding(false);
         layout.setSpacing(false);
@@ -176,69 +166,115 @@ public class DashboardView extends Main {
         return layout;
     }
 
-    // Ajout d'une colonne verticale avec image + infos système
     private Component createDeviceInfoColumn() {
-        // Image placeholder SVG animé
         String imageSvg = getDeviceImageSvg();
         com.vaadin.flow.component.html.Image deviceImage = new com.vaadin.flow.component.html.Image(
                 imageSvg, "Image appareil");
         deviceImage.setWidth("300px");
         deviceImage.getStyle().set("display", "block").set("margin", "0 auto 1rem auto").setWidth("100%");
-
         Component systemInfo = createSystemInfo();
-
         VerticalLayout layout = new VerticalLayout(deviceImage, systemInfo);
         layout.setPadding(false);
         layout.setSpacing(false);
         layout.setWidthFull();
-        layout.getStyle().setWidth("640px").setMaxWidth("1000px").setMinWidth("440px");
+        layout.getStyle().setWidth("640px").setMaxWidth("1000px").setMinWidth("440px").setFlexGrow("1");
         return layout;
     }
 
     private Component createSystemInfo() {
-        HorizontalLayout header = createHeader("Informations Système", "Détails matériels");
-
-        Grid<SystemInfoItem> grid = new Grid<>(SystemInfoItem.class, false);
-        grid.addThemeVariants(GridVariant.LUMO_NO_BORDER, GridVariant.LUMO_NO_ROW_BORDERS);
-
-        grid.addColumn(SystemInfoItem::getComponent).setHeader("Composant").setFlexGrow(1);
-        grid.addColumn(SystemInfoItem::getValue).setHeader("Valeur").setAutoWidth(true)
+        HorizontalLayout header = createHeader("Informations Système", "Détails matériels complets");
+        systemInfoGrid = new Grid<>(SystemInfoItem.class, false);
+        systemInfoGrid.addThemeVariants(GridVariant.LUMO_NO_BORDER, GridVariant.LUMO_NO_ROW_BORDERS);
+        systemInfoGrid.addColumn(SystemInfoItem::getComponent).setHeader("Composant").setFlexGrow(1);
+        systemInfoGrid.addColumn(SystemInfoItem::getValue).setHeader("Valeur").setAutoWidth(true)
                 .setTextAlign(ColumnTextAlign.END);
-
-        grid.setItems(
-                new SystemInfoItem("Processeur", getCPUName()),
-                new SystemInfoItem("Fréquence", String.format("%.0f MHz", getCPUFrequency())),
-                new SystemInfoItem("Mémoire Totale", formatBytes(getTotalMemory())),
-                new SystemInfoItem("Mémoire Disponible", formatBytes(getAvailableMemory())),
-                new SystemInfoItem("Système", getOSName()));
-
-        VerticalLayout layout = new VerticalLayout(header, grid);
+        List<SystemInfoItem> items = buildSystemInfoItems();
+        systemInfoGrid.setItems(items);
+        systemInfoGrid.setSizeFull();
+        VerticalLayout layout = new VerticalLayout(header, systemInfoGrid);
+        layout.setSizeFull();
         layout.addClassName(Padding.LARGE);
         layout.setPadding(false);
         layout.setSpacing(false);
+        layout.setFlexGrow(1, systemInfoGrid);
         return layout;
     }
 
-    // Bloc RAM usage : Active, Résidente, Compressée sous forme de pie chart
-    private Component createRamUsageBlock() {
-        HorizontalLayout header = createHeader("RAM Usage", "Active, résidente et compressée");
+    private List<SystemInfoItem> buildSystemInfoItems() {
+        List<SystemInfoItem> items = new ArrayList<>();
+        systemData.getOsCaption().ifPresent(v -> items.add(new SystemInfoItem("OS Caption", v)));
+        items.add(new SystemInfoItem("OS Name", getOSName()));
+        systemData.getOsVersion().ifPresent(v -> items.add(new SystemInfoItem("OS Version", v)));
+        systemData.getOsArchitecture().ifPresent(v -> items.add(new SystemInfoItem("OS Architecture", v)));
+        systemData.getOsSerial().ifPresent(v -> items.add(new SystemInfoItem("OS Serial", v)));
+        systemData.getOsLicense().ifPresent(v -> items.add(new SystemInfoItem("OS License", v)));
+        systemData.getSystemType().ifPresent(v -> items.add(new SystemInfoItem("System Type", v)));
+        systemData.getSystemManufacturer().ifPresent(v -> items.add(new SystemInfoItem("Manufacturer", v)));
+        systemData.getSystemModel().ifPresent(v -> items.add(new SystemInfoItem("Model", v)));
+        items.add(new SystemInfoItem("CPU Load", formatOrNA(getCPULoad(), "%.1f%%")));
+        systemData.getCpuLoadAvg()
+                .ifPresent(v -> items.add(new SystemInfoItem("CPU Load Avg", String.format("%.1f", v))));
+        items.add(new SystemInfoItem("CPU Temperature", formatOrNA(getCPUTemperature(), "%.1f°C")));
+        items.add(new SystemInfoItem("CPU Name", getCPUName()));
+        systemData.getCpuCores().ifPresent(v -> items.add(new SystemInfoItem("CPU Cores", v.toString())));
+        systemData.getCpuThreads().ifPresent(v -> items.add(new SystemInfoItem("CPU Threads", v.toString())));
+        systemData.getCpuCurrentSpeed()
+                .ifPresent(v -> items.add(new SystemInfoItem("CPU Current Speed", String.format("%d MHz", v))));
+        systemData.getCpuMaxSpeed()
+                .ifPresent(v -> items.add(new SystemInfoItem("CPU Max Speed", String.format("%d MHz", v))));
+        items.add(new SystemInfoItem("GPU Load", formatOrNA(getGPULoad(), "%.1f%%")));
+        items.add(new SystemInfoItem("GPU Temperature", formatOrNA(getGPUTemperature(), "%.1f°C")));
+        systemData.getMemoryManufacturer().ifPresent(v -> items.add(new SystemInfoItem("Memory Manufacturer", v)));
+        systemData.getMemoryPart().ifPresent(v -> items.add(new SystemInfoItem("Memory Part", v)));
+        systemData.getMemorySpeed().ifPresent(v -> items.add(new SystemInfoItem("Memory Speed", v)));
+        long staticTotal = systemData.getMemoryTotal().orElse(0L);
+        long staticFree = systemData.getMemoryFree().orElse(0L);
+        items.add(new SystemInfoItem("Static Memory Total", formatBytes(staticTotal)));
+        items.add(new SystemInfoItem("Static Memory Free", formatBytes(staticFree)));
+        long dynTotal = getTotalMemory();
+        long dynAvailable = getAvailableMemory();
+        long dynUsed = dynTotal - dynAvailable;
+        items.add(new SystemInfoItem("Dynamic Total Memory", formatBytes(dynTotal)));
+        items.add(new SystemInfoItem("Dynamic Available Memory", formatBytes(dynAvailable)));
+        items.add(new SystemInfoItem("Dynamic Used Memory", formatBytes(dynUsed)));
+        systemData.getDiskModel().ifPresent(v -> items.add(new SystemInfoItem("Disk Model", v)));
+        systemData.getDiskSize().ifPresent(v -> items.add(new SystemInfoItem("Disk Size", formatBytes(v))));
+        systemData.getDiskType().ifPresent(v -> items.add(new SystemInfoItem("Disk Type", v)));
+        systemData.getDiskStatus().ifPresent(v -> items.add(new SystemInfoItem("Disk Status", v)));
+        systemData.getBoardManufacturer().ifPresent(v -> items.add(new SystemInfoItem("Board Manufacturer", v)));
+        systemData.getBoardModel().ifPresent(v -> items.add(new SystemInfoItem("Board Model", v)));
+        systemData.getBoardVersion().ifPresent(v -> items.add(new SystemInfoItem("Board Version", v)));
+        systemData.getBoardSerial().ifPresent(v -> items.add(new SystemInfoItem("Board Serial", v)));
+        systemData.getFanSpeeds().ifPresent(arr -> {
+            String speeds = Arrays.stream(arr)
+                    .mapToObj(i -> i + " RPM")
+                    .collect(Collectors.joining(", "));
+            items.add(new SystemInfoItem("Fan Speeds", speeds));
+        });
+        systemData.getSystemUptime().ifPresent(v -> items.add(new SystemInfoItem("System Uptime", formatUptime(v))));
+        systemData.getBootTime().ifPresent(v -> items.add(new SystemInfoItem("Boot Time", v)));
+        systemData.getOsName().ifPresent(v -> items.add(new SystemInfoItem("OS Name (dyn)", v)));
+        items.add(new SystemInfoItem("Last Update", systemData.getLastUpdate().toString()));
+        return items;
+    }
 
-        Chart chart = new Chart(ChartType.PIE);
-        Configuration conf = chart.getConfiguration();
+    private Component createRamUsageBlock() {
+        HorizontalLayout header = createHeader("RAM Usage", "Mémoire occupée et libre");
+        ramChart = new Chart(ChartType.PIE);
+        Configuration conf = ramChart.getConfiguration();
         conf.setTitle("");
         conf.getChart().setStyledMode(true);
-
+        long totalMem = getTotalMemory();
+        long availableMem = getAvailableMemory();
+        long usedMem = totalMem - availableMem;
         DataSeries series = new DataSeries();
-        series.add(new DataSeriesItem("Active", getRAMActive()));
-        series.add(new DataSeriesItem("Résidente", getRAMResident()));
-        series.add(new DataSeriesItem("Compressée", getRAMCompressed()));
+        series.add(new DataSeriesItem("Occupée (" + formatBytes(usedMem) + ")", usedMem));
+        series.add(new DataSeriesItem("Libre (" + formatBytes(availableMem) + ")", availableMem));
         conf.setSeries(series);
-
         PlotOptionsPie options = new PlotOptionsPie();
         options.setDataLabels(new DataLabels(true));
         conf.setPlotOptions(options);
-
-        VerticalLayout layout = new VerticalLayout(header, chart);
+        VerticalLayout layout = new VerticalLayout(header, ramChart);
         layout.addClassName(Padding.LARGE);
         layout.setPadding(false);
         layout.setSpacing(false);
@@ -246,17 +282,13 @@ public class DashboardView extends Main {
         return layout;
     }
 
-    // Bloc de contrôle du volume par application
     private Component createVolumePerAppBlock() {
         HorizontalLayout header = createHeader("Volume par application", "Contrôle individuel");
-
-        // Placeholder SVG animé pour le volume par application
         String volumeSvg = getVolumeControlSvg();
         com.vaadin.flow.component.html.Image volumePlaceholder = new com.vaadin.flow.component.html.Image(
                 volumeSvg, "Volume control placeholder");
         volumePlaceholder.setWidth("100%");
         volumePlaceholder.getStyle().set("display", "block").set("margin", "1rem auto").setFlexGrow("1");
-
         VerticalLayout layout = new VerticalLayout(header, volumePlaceholder);
         layout.addClassName(Padding.LARGE);
         layout.setPadding(false);
@@ -267,14 +299,11 @@ public class DashboardView extends Main {
     private HorizontalLayout createHeader(String title, String subtitle) {
         H2 h2 = new H2(title);
         h2.addClassNames(FontSize.XLARGE, Margin.NONE);
-
         Span span = new Span(subtitle);
         span.addClassNames(TextColor.SECONDARY, FontSize.XSMALL);
-
         VerticalLayout column = new VerticalLayout(h2, span);
         column.setPadding(false);
         column.setSpacing(false);
-
         HorizontalLayout header = new HorizontalLayout(column);
         header.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
         header.setSpacing(false);
@@ -282,33 +311,119 @@ public class DashboardView extends Main {
         return header;
     }
 
-    // --- Méthodes utilitaires ---
     private void initializeMonitors() {
         try {
             this.systemData = new SystemData();
+            updateSystemData();
         } catch (Exception e) {
             System.err.println("Erreur lors de l'initialisation du système de données: " + e.getMessage());
         }
     }
 
-    private String formatBytes(long bytes) {
-        // À implémenter dynamiquement
-        return String.valueOf(bytes);
-    }
+    private void updateSystemData() {
+        try {
+            com.pcpeek.monitors.staticinfo.OSLevelMonitor osMonitor = new com.pcpeek.monitors.staticinfo.OSLevelMonitor();
+            com.pcpeek.monitors.staticinfo.HardwareLevelMonitor hwMonitor = new com.pcpeek.monitors.staticinfo.HardwareLevelMonitor();
+            systemData.updateStaticData(osMonitor.getSystemInfo());
+            systemData.updateStaticData(hwMonitor.getSystemInfo());
+            com.pcpeek.monitors.dynamicinfo.ProbeMonitor probeMonitor = new com.pcpeek.monitors.dynamicinfo.ProbeMonitor();
+            com.pcpeek.monitors.dynamicinfo.ResourceMonitor resourceMonitor = new com.pcpeek.monitors.dynamicinfo.ResourceMonitor();
+            systemData.updateDynamicData(probeMonitor.getProbeInfo());
+            systemData.updateDynamicData(resourceMonitor.getResourceInfo());
 
-    /**
-     * Formate une valeur numérique ou retourne "N/A" si la valeur est nulle ou
-     * négative.
-     */
-    private String formatOrNA(double value, String format) {
-        if (value > 0.0) {
-            return String.format(format, value);
-        } else {
-            return "N/A";
+        } catch (Exception e) {
+            System.err.println("Erreur lors de la mise à jour des données système: " + e.getMessage());
         }
     }
 
-    // --- Classes internes ---
+    private void startPeriodicUpdate() {
+        updateTimer = new Timer("DashboardUpdate", true);
+        updateTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                if (ui != null) {
+                    ui.access(() -> {
+                        try {
+                            refreshData();
+                            updateUIComponents();
+                        } catch (Exception e) {
+                            System.err.println("Erreur lors de la mise à jour du dashboard: " + e.getMessage());
+                        }
+                    });
+                }
+            }
+        }, 5000, 5000);
+    }
+
+    private void updateUIComponents() {
+        if (highlightsLayout != null) {
+            highlightsLayout.removeAll();
+            highlightsLayout.add(
+                    createHighlight("Charge CPU", formatOrNA(getCPULoad(), "%.1f%%"), 0.0),
+                    createHighlight("Température CPU", formatOrNA(getCPUTemperature(), "%.1f°C"), 0.0),
+                    createHighlight("Charge GPU", formatOrNA(getGPULoad(), "%.1f%%"), 0.0),
+                    createHighlight("Température GPU", formatOrNA(getGPUTemperature(), "%.1f°C"), 0.0));
+        }
+        if (systemInfoGrid != null) {
+            updateSystemInfoGrid();
+        }
+        if (cpuLoadChart != null) {
+            updateCpuLoadChart();
+        }
+        if (ramChart != null) {
+            updateRamChart();
+        }
+        if (ui != null) {
+            ui.push();
+        }
+    }
+
+    private void updateSystemInfoGrid() {
+        List<SystemInfoItem> items = buildSystemInfoItems();
+        systemInfoGrid.setItems(items);
+    }
+
+    private void updateRamChart() {
+        Configuration conf = ramChart.getConfiguration();
+        conf.getSeries().clear();
+        long totalMem = getTotalMemory();
+        long availableMem = getAvailableMemory();
+        long usedMem = totalMem - availableMem;
+        DataSeries series = new DataSeries();
+        series.add(new DataSeriesItem("Occupée (" + formatBytes(usedMem) + ")", usedMem));
+        series.add(new DataSeriesItem("Libre (" + formatBytes(availableMem) + ")", availableMem));
+        conf.setSeries(series);
+        ramChart.drawChart();
+    }
+
+    private void updateCpuLoadChart() {
+        if (cpuLoadChart == null)
+            return;
+        try {
+            Configuration conf = cpuLoadChart.getConfiguration();
+            conf.getSeries().clear();
+            double load = systemData.getCpuLoad().orElse(0.0);
+            double temp = systemData.getCpuTemperature().orElse(0.0);
+            ListSeries loadSeries = new ListSeries("Charge CPU (%)", load);
+            loadSeries.setyAxis(0);
+            ListSeries tempSeries = new ListSeries("Température CPU (°C)", temp);
+            tempSeries.setyAxis(1);
+            conf.addSeries(loadSeries);
+            conf.addSeries(tempSeries);
+            cpuLoadChart.drawChart();
+        } catch (Exception e) {
+            System.err.println("Erreur lors de la mise à jour du graphique CPU: " + e.getMessage());
+        }
+    }
+
+    @Override
+    protected void onDetach(com.vaadin.flow.component.DetachEvent detachEvent) {
+        super.onDetach(detachEvent);
+        if (updateTimer != null) {
+            updateTimer.cancel();
+        }
+    }
+
     public static class SystemInfoItem {
         private String component;
         private String value;
@@ -327,69 +442,47 @@ public class DashboardView extends Main {
         }
     }
 
-    // --- Getters système ---
     private double getCPULoad() {
-        // À implémenter dynamiquement
-        return 0.0;
+        return systemData.getCpuLoad().orElse(0.0);
     }
 
     private double getCPUTemperature() {
-        // À implémenter dynamiquement
-        return 0.0;
+        return systemData.getCpuTemperature().orElse(0.0);
     }
 
     private String getCPUName() {
-        // À implémenter dynamiquement
-        return "N/A";
+        return systemData.getCpuName().orElse(
+                systemData.getProcessorName().orElse("N/A"));
     }
 
     private double getCPUFrequency() {
-        // À implémenter dynamiquement
-        return 0.0;
+        return systemData.getCpuMaxSpeed().orElse(0L).doubleValue();
     }
 
     private long getTotalMemory() {
-        // À implémenter dynamiquement
-        return 0L;
+        return systemData.getTotalMemory().orElse(
+                systemData.getMemoryTotal().orElse(0L));
     }
 
     private long getAvailableMemory() {
-        // À implémenter dynamiquement
-        return 0L;
+        return systemData.getAvailableMemory().orElse(
+                systemData.getMemoryFree().orElse(0L));
     }
 
     private double getGPULoad() {
-        // À implémenter dynamiquement
-        return 0.0;
+        return systemData.getGpuLoad().orElse(0.0);
     }
 
     private double getGPUTemperature() {
-        // À implémenter dynamiquement
-        return 0.0;
+        return systemData.getGpuTemperature().orElse(0.0);
     }
 
     private String getOSName() {
-        // À implémenter dynamiquement
-        return "N/A";
+        return systemData.getOsName().orElse(
+                systemData.getOsCaption().orElse(
+                        System.getProperty("os.name", "N/A")));
     }
 
-    // Getters RAM à implémenter dynamiquement
-    private long getRAMActive() {
-        // À implémenter dynamiquement
-        return 0L;
-    }
-
-    private long getRAMResident() {
-        // À implémenter dynamiquement
-        return 0L;
-    }
-
-    private long getRAMCompressed() {
-        // À implémenter dynamiquement
-        return 0L;
-    }
-
-    // Méthode utilitaire pour créer un placeholder SVG animé
     private String getDeviceImageSvg() {
         return "data:image/svg+xml;base64," + java.util.Base64.getEncoder().encodeToString(
                 ("<?xml version='1.0' encoding='UTF-8'?>" +
@@ -428,8 +521,6 @@ public class DashboardView extends Main {
                         "</svg>").getBytes());
     }
 
-    // Méthode utilitaire pour créer un placeholder SVG animé pour le volume par
-    // application
     private String getVolumeControlSvg() {
         return "data:image/svg+xml;base64," + java.util.Base64.getEncoder().encodeToString(
                 ("<?xml version='1.0' encoding='UTF-8'?>" +
@@ -495,5 +586,13 @@ public class DashboardView extends Main {
                         "Contrôles de volume individuels - À implémenter" +
                         "</text>" +
                         "</svg>").getBytes());
+    }
+
+    private void refreshData() {
+        updateSystemData();
+    }
+
+    public SystemData getSystemData() {
+        return systemData;
     }
 }

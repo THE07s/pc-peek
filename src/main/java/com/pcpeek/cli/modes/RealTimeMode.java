@@ -11,8 +11,8 @@ public class RealTimeMode {
     private final ProbeMonitor probeMonitor;
     private final ResourceMonitor resourceMonitor;
 
-    public RealTimeMode() {
-        this.systemData = new SystemData();
+    public RealTimeMode(SystemData systemData) {
+        this.systemData = systemData;
         this.probeMonitor = new ProbeMonitor();
         this.resourceMonitor = new ResourceMonitor();
     }
@@ -52,75 +52,80 @@ public class RealTimeMode {
                 display.append("=== Mode Real Time ===\n");
                 display.append("Appuyez sur Entrée pour revenir au menu...\n\n");
                 
-                // Mettre à jour les données (les moniteurs se mettent à jour automatiquement)
-                // resourceMonitor et probeMonitor peuvent être utilisés pour récupérer des données
+                // Mettre à jour SystemData avec les données dynamiques
+                try {
+                    systemData.updateDynamicData(resourceMonitor.getResourceInfo());
+                    systemData.updateDynamicData(probeMonitor.getProbeInfo());
+                } catch (Exception e) {
+                    display.append("Erreur lors de la récupération des données: ").append(e.getMessage()).append("\n");
+                }
                 
-                // Afficher les informations CPU
+                // Afficher les informations CPU depuis SystemData
                 display.append("=== CPU ===\n");
-                display.append("Processeurs disponibles: ").append(Runtime.getRuntime().availableProcessors()).append("\n");
+                systemData.getCpuCores().ifPresentOrElse(
+                    cores -> display.append("Processeurs disponibles: ").append(cores).append("\n"),
+                    () -> display.append("Processeurs disponibles: ").append(Runtime.getRuntime().availableProcessors()).append("\n")
+                );
                 
-                // Charge CPU (simulation basique)
-                double cpuLoad = getCpuLoad();
-                display.append(String.format("Charge CPU: %.1f%%\n", cpuLoad));
-                
-                // Barre de progression CPU
-                int barLength = 30;
-                int filledLength = (int) (cpuLoad * barLength / 100);
-                StringBuilder cpuBar = new StringBuilder();
-                cpuBar.append("[");
-                for (int i = 0; i < barLength; i++) {
-                    if (i < filledLength) {
-                        if (cpuLoad >= 80) {
-                            cpuBar.append("█");
-                        } else if (cpuLoad >= 50) {
-                            cpuBar.append("▓");
-                        } else {
-                            cpuBar.append("░");
-                        }
-                    } else {
-                        cpuBar.append(" ");
+                // Charge CPU depuis SystemData ou fallback
+                systemData.getCpuLoad().ifPresentOrElse(
+                    usage -> {
+                        display.append(String.format("Charge CPU: %.1f%%\n", usage));
+                        addProgressBar(display, usage, "CPU");
+                    },
+                    () -> {
+                        double cpuLoad = getCpuLoad();
+                        display.append(String.format("Charge CPU: %.1f%%\n", cpuLoad));
+                        addProgressBar(display, cpuLoad, "CPU");
                     }
-                }
-                cpuBar.append("]");
-                display.append("  ").append(cpuBar.toString()).append("\n");
+                );
                 
-                // Mémoire
+                // Mémoire depuis SystemData ou fallback JVM
                 display.append("\n=== Mémoire ===\n");
-                Runtime runtime = Runtime.getRuntime();
-                long totalMemory = runtime.totalMemory();
-                long freeMemory = runtime.freeMemory();
-                long usedMemory = totalMemory - freeMemory;
-                double memoryUsage = (usedMemory * 100.0) / totalMemory;
                 
-                display.append(String.format("Totale (JVM): %s\n", formatSize(totalMemory)));
-                display.append(String.format("Utilisée: %s (%.1f%%)\n", formatSize(usedMemory), memoryUsage));
-                display.append(String.format("Libre: %s\n", formatSize(freeMemory)));
-                
-                // Barre de progression mémoire
-                int memFilledLength = (int) (memoryUsage * barLength / 100);
-                StringBuilder memBar = new StringBuilder();
-                memBar.append("[");
-                for (int i = 0; i < barLength; i++) {
-                    if (i < memFilledLength) {
-                        if (memoryUsage >= 90) {
-                            memBar.append("█");
-                        } else if (memoryUsage >= 70) {
-                            memBar.append("▓");
-                        } else {
-                            memBar.append("░");
-                        }
-                    } else {
-                        memBar.append(" ");
+                systemData.getMemoryTotal().ifPresentOrElse(
+                    totalMem -> {
+                        // Utiliser les données système
+                        systemData.getMemoryFree().ifPresent(freeMem -> {
+                            long usedMem = totalMem - freeMem;
+                            double memoryUsage = (usedMem * 100.0) / totalMem;
+                            
+                            display.append(String.format("Totale: %s\n", formatSize(totalMem)));
+                            display.append(String.format("Utilisée: %s (%.1f%%)\n", formatSize(usedMem), memoryUsage));
+                            display.append(String.format("Libre: %s\n", formatSize(freeMem)));
+                            
+                            addProgressBar(display, memoryUsage, "Mémoire");
+                        });
+                    },
+                    () -> {
+                        // Fallback JVM
+                        Runtime runtime = Runtime.getRuntime();
+                        long totalMemory = runtime.totalMemory();
+                        long freeMemory = runtime.freeMemory();
+                        long usedMemory = totalMemory - freeMemory;
+                        double memoryUsage = (usedMemory * 100.0) / totalMemory;
+                        
+                        display.append(String.format("Totale (JVM): %s\n", formatSize(totalMemory)));
+                        display.append(String.format("Utilisée: %s (%.1f%%)\n", formatSize(usedMemory), memoryUsage));
+                        display.append(String.format("Libre: %s\n", formatSize(freeMemory)));
+                        
+                        addProgressBar(display, memoryUsage, "Mémoire");
                     }
-                }
-                memBar.append("]");
-                display.append("  ").append(memBar.toString()).append("\n");
+                );
                 
-                // Informations système
+                // Informations système depuis SystemData
                 display.append("\n=== Système ===\n");
-                display.append("OS: ").append(System.getProperty("os.name")).append(" ")
-                       .append(System.getProperty("os.version")).append("\n");
-                display.append("Architecture: ").append(System.getProperty("os.arch")).append("\n");
+                systemData.getOsCaption().ifPresentOrElse(
+                    caption -> display.append("OS: ").append(caption).append("\n"),
+                    () -> display.append("OS: ").append(System.getProperty("os.name")).append(" ")
+                           .append(System.getProperty("os.version")).append("\n")
+                );
+                
+                systemData.getOsArchitecture().ifPresentOrElse(
+                    arch -> display.append("Architecture: ").append(arch).append("\n"),
+                    () -> display.append("Architecture: ").append(System.getProperty("os.arch")).append("\n")
+                );
+                
                 display.append("Java: ").append(System.getProperty("java.version")).append("\n");
 
                 System.out.print(display.toString());
@@ -174,5 +179,30 @@ public class RealTimeMode {
                 System.out.println();
             }
         }
+    }
+
+    private void addProgressBar(StringBuilder display, double percentage, String label) {
+        int barLength = 30;
+        int filledLength = (int) (percentage * barLength / 100);
+        filledLength = Math.min(filledLength, barLength);
+        filledLength = Math.max(filledLength, 0);
+        
+        StringBuilder bar = new StringBuilder();
+        bar.append("[");
+        for (int i = 0; i < barLength; i++) {
+            if (i < filledLength) {
+                if (percentage >= 80) {
+                    bar.append("█");
+                } else if (percentage >= 50) {
+                    bar.append("▓");
+                } else {
+                    bar.append("░");
+                }
+            } else {
+                bar.append(" ");
+            }
+        }
+        bar.append("]");
+        display.append("  ").append(bar.toString()).append("\n");
     }
 }

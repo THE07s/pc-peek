@@ -15,8 +15,8 @@ public class CLIMenuHandler {
     public CLIMenuHandler(SystemData systemData) {
         this.systemData = systemData;
         this.staticMode = new StaticInfoMode(systemData);
-        this.realTimeMode = new RealTimeMode();
-        this.temperatureMode = new TemperatureMode();
+        this.realTimeMode = new RealTimeMode(systemData);
+        this.temperatureMode = new TemperatureMode(systemData);
     }
     
     public void showMainMenu(Scanner scanner) {

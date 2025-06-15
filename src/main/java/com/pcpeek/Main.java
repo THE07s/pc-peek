@@ -3,13 +3,16 @@ package com.pcpeek;
 import java.time.Clock;
 
 // Imports pour Spring Boot et Vaadin
-import com.vaadin.flow.component.page.AppShellConfigurator;
-import com.vaadin.flow.theme.Theme;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import com.vaadin.flow.component.page.AppShellConfigurator;
+import com.vaadin.flow.component.page.Push;
+import com.vaadin.flow.shared.ui.Transport;
+import com.vaadin.flow.theme.Theme;
 
 @SpringBootApplication
+@Push(transport = Transport.WEBSOCKET_XHR)
 @Theme("default")
 public class Main implements AppShellConfigurator {
 
@@ -39,7 +42,7 @@ public class Main implements AppShellConfigurator {
     }
 
     private static void startGUI(String[] args) {
-        System.out.println("🌐 Mode Interface Web Activé");
+        System.out.println("Mode Interface Web Activé");
         System.out.println("Démarrage du serveur web...");
         System.out.println("L'application sera accessible sur : http://localhost:8080\n");
         
