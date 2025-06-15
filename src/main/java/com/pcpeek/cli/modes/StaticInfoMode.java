@@ -1,398 +1,389 @@
 package com.pcpeek.cli.modes;
 
 import com.pcpeek.SystemData;
-import com.pcpeek.monitors.staticinfo.OSLevelMonitor;
-import com.pcpeek.monitors.staticinfo.HardwareLevelMonitor;
 import java.util.Scanner;
 import java.io.File;
-import java.net.NetworkInterface;
-import java.net.InetAddress;
-import java.util.Enumeration;
 
 public class StaticInfoMode {
     private final SystemData systemData;
-    private final OSLevelMonitor osMonitor;
-    private final HardwareLevelMonitor hwMonitor;
-
+    
     public StaticInfoMode(SystemData systemData) {
         this.systemData = systemData;
-        this.osMonitor = new OSLevelMonitor();
-        this.hwMonitor = new HardwareLevelMonitor();
     }
-
-    public void execute(Scanner scanner) {
+      public void execute(Scanner scanner) {
         clearScreen();
         System.out.println("=== Informations STATIC ===");
         System.out.println("Affichage des informations système détaillées...\n");
 
-        // Mettre à jour SystemData avec les données des moniteurs
-        updateSystemData();
+        // Collecter et mettre à jour les données dans SystemData
+        collectSystemInfo();
 
         // Afficher les informations depuis SystemData
         displaySystemInfo();
-        displayHardwareInfo();
-        displayNetworkInfo();
-        displayDiskInfo();
 
-        System.out.println("\nAppuyez sur Entrée pour revenir au menu principal...");
+        System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
         scanner.nextLine();
     }
 
-    private void updateSystemData() {
+    private void collectSystemInfo() {
+        // Informations système de base
         try {
-            // Récupérer les données statiques des moniteurs et les stocker dans SystemData
-            // Utiliser les méthodes standardisées de Monitor
-            osMonitor.update();
-            hwMonitor.update();
-            systemData.updateStaticData(osMonitor.getSystemInfo());
-            systemData.updateStaticData(hwMonitor.getSystemInfo());
-
-            // Récupérer et mettre à jour les données dynamiques aussi pour cohérence
-            com.pcpeek.monitors.dynamicinfo.ProbeMonitor probeMonitor = new com.pcpeek.monitors.dynamicinfo.ProbeMonitor();
-            com.pcpeek.monitors.dynamicinfo.ResourceMonitor resourceMonitor = new com.pcpeek.monitors.dynamicinfo.ResourceMonitor();
-
-            // Utiliser les méthodes standardisées de Monitor
-            probeMonitor.update();
-            resourceMonitor.update();
-            systemData.updateDynamicData(probeMonitor.getSystemInfo());
-            systemData.updateDynamicData(resourceMonitor.getSystemInfo());
-
-            // Ajouter des informations Java supplémentaires
+            // Informations OS
             systemData.setOsName(System.getProperty("os.name"));
-            systemData.setOsVersion(systemData.getOsVersion().orElse(System.getProperty("os.version")));
-            systemData.setOsArchitecture(systemData.getOsArchitecture().orElse(System.getProperty("os.arch")));
+            systemData.setOsVersion(System.getProperty("os.version"));
+            systemData.setOsArchitecture(System.getProperty("os.arch"));
+
+            // Informations CPU via WMI
+            collectCpuInfo();
+            
+            // Informations GPU via WMI
+            collectGpuInfo();
+            
+            // Informations disques
+            collectDiskInfo();
+            
+            // Informations réseau
+            collectNetworkInfo();
+            
+            // État d'activation Windows
+            if (isCompatibleOS()) {
+                collectWindowsActivationInfo();
+                collectBatteryInfo();
+            }
 
         } catch (Exception e) {
-            System.err.println("Erreur lors de la mise à jour des données: " + e.getMessage());
+            System.err.println("Erreur lors de la récupération des informations système : " + e.getMessage());
         }
     }
 
     private void displaySystemInfo() {
+        // Afficher les informations depuis SystemData
         System.out.println("=== Informations Système ===");
-
-        // Check if we have errors from monitors
-        if (systemData.hasData("error")) {
-            System.out.println("Erreur lors de la récupération des informations système : " +
-                    systemData.getString("error").orElse("Erreur inconnue"));
-        }
-
-        // Informations OS depuis SystemData
-        if (systemData.getOsCaption().isPresent()) {
-            String caption = systemData.getOsCaption().get();
-            System.out.println("Système : " + caption);
-        } else {
-            String osName = systemData.getOsName().isPresent() ? systemData.getOsName().get() : "Inconnu";
-            System.out.println("Système d'exploitation : " + osName);
-        }
-
-        if (systemData.getOsVersion().isPresent()) {
-            String version = systemData.getOsVersion().get();
-            System.out.println("Version : " + version);
-        }
-
-        if (systemData.getOsArchitecture().isPresent()) {
-            String arch = systemData.getOsArchitecture().get();
-            System.out.println("Architecture : " + arch);
-        }
-
-        // Informations fabricant/modèle système
-        if (systemData.getSystemManufacturer().isPresent()) {
-            String manufacturer = systemData.getSystemManufacturer().get();
-            System.out.println("Fabricant : " + manufacturer);
-        }
-
-        if (systemData.getSystemModel().isPresent()) {
-            String model = systemData.getSystemModel().get();
-            System.out.println("Modèle : " + model);
-        }
-
-        if (systemData.getSystemType().isPresent()) {
-            String type = systemData.getSystemType().get();
-            System.out.println("Type : " + type);
-        }
-
-        // Informations OS avancées
-        if (systemData.getOsSerial().isPresent()) {
-            String serial = systemData.getOsSerial().get();
-            System.out.println("Numéro de série OS : " + serial);
-        }
-
-        if (systemData.getOsLicense().isPresent()) {
-            String license = systemData.getOsLicense().get();
-            System.out.println("Licence : " + license);
-        }
-
-        // Informations Java/Runtime
-        System.out.println("Version Java : " + System.getProperty("java.version") +
-                " (" + System.getProperty("java.vendor") + ")");
+        
+        systemData.getCpuName().ifPresent(name -> 
+            System.out.println("\n=== Processeur ===\n" + name));
+        
+        // Informations OS
+        System.out.println("\nSystème d'exploitation : " + 
+            systemData.getOsName().orElse(System.getProperty("os.name")) + " " + 
+            systemData.getOsVersion().orElse(System.getProperty("os.version")));
+        System.out.println("Architecture : " + 
+            systemData.getOsArchitecture().orElse(System.getProperty("os.arch")));
+        
+        // Informations Java et runtime
+        System.out.println("Version Java : " + System.getProperty("java.version") + " (" + System.getProperty("java.vendor") + ")");
         System.out.println("Utilisateur : " + System.getProperty("user.name"));
         System.out.println("Répertoire de travail : " + System.getProperty("user.dir"));
         System.out.println("Processeurs disponibles : " + Runtime.getRuntime().availableProcessors());
-
-        // Temps de fonctionnement système
-        if (systemData.getSystemUptime().isPresent()) {
-            Long uptime = systemData.getSystemUptime().get();
-            System.out.println("Temps de fonctionnement système : " + formatUptime(uptime));
+        System.out.println("Mémoire totale (Java) : " + formatSize(Runtime.getRuntime().totalMemory()));
+        System.out.println("Mémoire utilisée (Java) : " + formatSize(Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()));
+        
+        // Affichage des informations collectées
+        displayCollectedInfo();
+    }
+    
+    // Méthodes utilitaires
+    private void clearScreen() {
+        try {
+            if (System.getProperty("os.name").toLowerCase().contains("windows")) {
+                new ProcessBuilder("cmd", "/c", "cls").inheritIO().start().waitFor();
+            } else {
+                System.out.print("\033[H\033[2J");
+                System.out.flush();
+            }
+        } catch (Exception e) {
+            System.err.println("Erreur lors du nettoyage de l'écran: " + e.getMessage());
         }
-
-        if (systemData.getBootTime().isPresent()) {
-            String bootTime = systemData.getBootTime().get();
-            System.out.println("Heure de démarrage : " + bootTime);
+    }
+    
+    private boolean isCompatibleOS() {
+        String osName = System.getProperty("os.name").toLowerCase();
+        return osName.contains("windows");
+    }
+    
+    private String formatSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        int exp = (int) (Math.log(bytes) / Math.log(1024));
+        String pre = "KMGTPE".charAt(exp-1) + "";
+        return String.format("%.1f %sB", bytes / Math.pow(1024, exp), pre);
+    }
+    
+    private String formatMAC(byte[] mac) {
+        if (mac == null) return "Non disponible";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < mac.length; i++) {
+            sb.append(String.format("%02X%s", mac[i], (i < mac.length - 1) ? "-" : ""));
         }
-
-        // Mémoire Java (pour référence)
-        Runtime runtime = Runtime.getRuntime();
-        long totalMemory = runtime.totalMemory();
-        long freeMemory = runtime.freeMemory();
-        long usedMemory = totalMemory - freeMemory;
-
-        System.out.println("Mémoire JVM totale : " + formatSize(totalMemory));
-        System.out.println("Mémoire JVM utilisée : " + formatSize(usedMemory));
+        return sb.toString();
     }
 
-    private void displayHardwareInfo() {
-        // CPU - Ajouter plus d'informations
-        if (systemData.getCpuName().isPresent()) {
-            String name = systemData.getCpuName().get();
-            System.out.println("\n=== Processeur ===");
-            System.out.println("Modèle : " + name);
-        } else {
-            // Fallback vers processor_name si cpu.name n'est pas disponible
-            if (systemData.getProcessorName().isPresent()) {
-                String processorName = systemData.getProcessorName().get();
-                System.out.println("\n=== Processeur ===");
-                System.out.println("Modèle : " + processorName);
-            }
-        }
-
-        if (systemData.getCpuCores().isPresent()) {
-            Long cores = systemData.getCpuCores().get();
-            System.out.println("Cœurs physiques : " + cores);
-        }
-
-        if (systemData.getCpuThreads().isPresent()) {
-            Long threads = systemData.getCpuThreads().get();
-            System.out.println("Threads logiques : " + threads);
-        }
-
-        if (systemData.getCpuCurrentSpeed().isPresent()) {
-            Long speed = systemData.getCpuCurrentSpeed().get();
-            System.out.println("Fréquence actuelle : " + speed + " MHz");
-        }
-
-        if (systemData.getCpuMaxSpeed().isPresent()) {
-            Long speed = systemData.getCpuMaxSpeed().get();
-            System.out.println("Fréquence maximale : " + speed + " MHz");
-        }
-
-        // Mémoire système (formatée correctement)
-        if (systemData.getMemoryTotal().isPresent()) {
-            System.out.println("\n=== Mémoire Système ===");
-            long totalMem = systemData.getMemoryTotal().get();
-            System.out.println("Capacité totale : " + formatSize(totalMem));
-
-            // Afficher mémoire libre/occupée si disponible
-            if (systemData.getMemoryFree().isPresent()) {
-                long freeMem = systemData.getMemoryFree().get();
-                long usedMem = totalMem - freeMem;
-                double usedPercent = (usedMem * 100.0) / totalMem;
-                double freePercent = (freeMem * 100.0) / totalMem;
-
-                System.out.println("Mémoire occupée : " + formatSize(usedMem) +
-                        String.format(" (%.1f%%)", usedPercent));
-                System.out.println("Mémoire libre : " + formatSize(freeMem) +
-                        String.format(" (%.1f%%)", freePercent));
-            }
-
-            // Informations techniques mémoire
-            if (systemData.getMemorySpeed().isPresent()) {
-                Object speed = systemData.getMemorySpeed().get();
-                System.out.println("Vitesse : " + speed);
-            }
-
-            if (systemData.getMemoryManufacturer().isPresent()) {
-                String manufacturer = systemData.getMemoryManufacturer().get();
-                System.out.println("Fabricant : " + manufacturer);
-            }
-
-            if (systemData.getMemoryPart().isPresent()) {
-                String part = systemData.getMemoryPart().get();
-                System.out.println("Référence : " + part);
-            }
-        } else {
-            // Fallback vers getTotalMemory/getAvailableMemory si memory.total n'est pas
-            // disponible
-            if (systemData.getTotalMemory().isPresent()) {
-                long totalMem = systemData.getTotalMemory().get();
-                System.out.println("\n=== Mémoire Système ===");
-                System.out.println("Capacité totale : " + formatSize(totalMem));
-
-                if (systemData.getAvailableMemory().isPresent()) {
-                    long availableMem = systemData.getAvailableMemory().get();
-                    long usedMem = totalMem - availableMem;
-                    double usedPercent = (usedMem * 100.0) / totalMem;
-                    double freePercent = (availableMem * 100.0) / totalMem;
-
-                    System.out.println("Mémoire occupée : " + formatSize(usedMem) +
-                            String.format(" (%.1f%%)", usedPercent));
-                    System.out.println("Mémoire disponible : " + formatSize(availableMem) +
-                            String.format(" (%.1f%%)", freePercent));
+    private void collectCpuInfo() {
+        try {
+            Process cpuProcess = Runtime.getRuntime().exec("wmic cpu get name");
+            java.io.BufferedReader cpuReader = new java.io.BufferedReader(new java.io.InputStreamReader(cpuProcess.getInputStream()));
+            String cpuLine;
+            boolean firstLine = true;
+            while ((cpuLine = cpuReader.readLine()) != null) {
+                if (firstLine) {
+                    firstLine = false;
+                    continue;
+                }
+                if (!cpuLine.trim().isEmpty()) {
+                    systemData.setCpuName(cpuLine.trim());
+                    break;
                 }
             }
-        }
-
-        // Carte mère - Ajouter plus d'informations
-        if (systemData.getBoardManufacturer().isPresent() || systemData.getBoardModel().isPresent()) {
-            System.out.println("\n=== Carte Mère ===");
-            if (systemData.getBoardManufacturer().isPresent()) {
-                String manufacturer = systemData.getBoardManufacturer().get();
-                System.out.println("Fabricant : " + manufacturer);
-            }
-            if (systemData.getBoardModel().isPresent()) {
-                String model = systemData.getBoardModel().get();
-                System.out.println("Modèle : " + model);
-            }
-            if (systemData.getBoardVersion().isPresent()) {
-                String version = systemData.getBoardVersion().get();
-                System.out.println("Version : " + version);
-            }
-            if (systemData.getBoardSerial().isPresent()) {
-                String serial = systemData.getBoardSerial().get();
-                System.out.println("Numéro de série : " + serial);
-            }
-        }
-
-        // Stockage principal
-        if (systemData.getDiskModel().isPresent() || systemData.getDiskSize().isPresent()) {
-            System.out.println("\n=== Stockage Principal ===");
-            if (systemData.getDiskModel().isPresent()) {
-                String model = systemData.getDiskModel().get();
-                System.out.println("Modèle : " + model);
-            }
-            if (systemData.getDiskSize().isPresent()) {
-                Long size = systemData.getDiskSize().get();
-                System.out.println("Capacité : " + formatSize(size));
-            }
-            if (systemData.getDiskType().isPresent()) {
-                String type = systemData.getDiskType().get();
-                System.out.println("Type : " + type);
-            }
-            if (systemData.getDiskStatus().isPresent()) {
-                String status = systemData.getDiskStatus().get();
-                System.out.println("État : " + status);
-            }
+            cpuProcess.waitFor();
+        } catch (Exception e) {
+            System.err.println("Erreur lors de la récupération des informations CPU : " + e.getMessage());
         }
     }
 
-    private void displayNetworkInfo() {
-        System.out.println("\n=== Informations Réseau ===");
+    private void collectGpuInfo() {
+        // Les informations GPU sont affichées directement car SystemData n'a pas de setter GPU pour le moment
+    }
+
+    private void collectDiskInfo() {
         try {
-            String hostname = java.net.InetAddress.getLocalHost().getHostName();
-            System.out.println("Nom d'hôte : " + hostname);
-
-            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
-            while (interfaces.hasMoreElements()) {
-                NetworkInterface networkInterface = interfaces.nextElement();
-                if (networkInterface.isUp()) {
-                    System.out.println("\nInterface : " + networkInterface.getName());
-                    System.out.println("  Nom : " + networkInterface.getDisplayName());
-
-                    byte[] mac = networkInterface.getHardwareAddress();
-                    if (mac != null) {
-                        StringBuilder macAddr = new StringBuilder();
-                        for (int i = 0; i < mac.length; i++) {
-                            macAddr.append(String.format("%02X", mac[i]));
-                            if (i < mac.length - 1) {
-                                macAddr.append("-");
-                            }
-                        }
-                        System.out.println("  Adresse MAC : " + macAddr.toString());
-                    } else {
-                        System.out.println("  Adresse MAC : Non disponible");
-                    }
-
-                    Enumeration<InetAddress> addresses = networkInterface.getInetAddresses();
-                    while (addresses.hasMoreElements()) {
-                        InetAddress address = addresses.nextElement();
-                        System.out.println("  Adresse IP : " + address.getHostAddress());
-                    }
+            File[] roots = File.listRoots();
+            for (File root : roots) {
+                if (root.getTotalSpace() > 0) {
+                    // Stocker les informations du premier disque trouvé
+                    systemData.setDiskSize(root.getTotalSpace());
+                    break;
                 }
             }
         } catch (Exception e) {
-            System.out.println("Erreur lors de la récupération des informations réseau : " + e.getMessage());
+            System.err.println("Erreur lors de la récupération des informations disque : " + e.getMessage());
         }
     }
 
-    private void displayDiskInfo() {
-        System.out.println("\n=== Disques ===");
+    private void collectNetworkInfo() {
+        // Les informations réseau sont affichées directement pour le moment
+    }
 
-        // Afficher les informations de disque depuis SystemData si disponibles
-        if (systemData.getDiskModel().isPresent() || systemData.getDiskSize().isPresent()) {
-            if (systemData.getDiskModel().isPresent()) {
-                String model = systemData.getDiskModel().get();
-                System.out.println("Modèle : " + model);
+    private void collectWindowsActivationInfo() {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(
+                "wmic",
+                "path",
+                "win32_operatingsystem",
+                "get",
+                "caption,version,osarchitecture,serialnumber,licensedatetime"
+            );
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            
+            java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(process.getInputStream())
+            );
+            
+            String line;
+            boolean firstLine = true;
+            while ((line = reader.readLine()) != null) {
+                if (firstLine) {
+                    firstLine = false;
+                    continue;
+                }
+                if (!line.trim().isEmpty()) {
+                    String[] parts = line.trim().split("\\s+", 5);
+                    if (parts.length >= 5) {
+                        systemData.setOsCaption(parts[0] + " " + parts[1]);
+                        systemData.setOsArchitecture(parts[2]);
+                        if (!parts[3].equals("NULL")) {
+                            systemData.setOsSerial(parts[3]);
+                        }
+                        if (!parts[4].equals("NULL")) {
+                            systemData.setOsLicense(parts[4]);
+                        }
+                        break;
+                    }
+                }
             }
-            if (systemData.getDiskSize().isPresent()) {
-                Long size = systemData.getDiskSize().get();
-                System.out.println("Taille : " + formatSize(size));
+            process.waitFor();
+        } catch (Exception e) {
+            System.err.println("Erreur lors de la récupération des informations Windows : " + e.getMessage());
+        }
+    }
+
+    private void collectBatteryInfo() {
+        // Les informations de batterie sont affichées directement pour le moment
+    }
+
+    private void displayCollectedInfo() {
+        // Affichage des informations GPU
+        try {
+            Process gpuProcess = Runtime.getRuntime().exec("wmic path win32_VideoController get name");
+            java.io.BufferedReader gpuReader = new java.io.BufferedReader(new java.io.InputStreamReader(gpuProcess.getInputStream()));
+            String gpuLine;
+            boolean firstLine = true;
+            boolean hasGPU = false;
+            while ((gpuLine = gpuReader.readLine()) != null) {
+                if (firstLine) {
+                    firstLine = false;
+                    continue;
+                }
+                if (!gpuLine.trim().isEmpty()) {
+                    if (!hasGPU) {
+                        System.out.println("\n=== Cartes Graphiques ===");
+                        hasGPU = true;
+                    }
+                    System.out.println(gpuLine.trim());
+                }
             }
-            if (systemData.getDiskType().isPresent()) {
-                String type = systemData.getDiskType().get();
-                System.out.println("Type : " + type);
-            }
-            if (systemData.getDiskStatus().isPresent()) {
-                String status = systemData.getDiskStatus().get();
-                System.out.println("État : " + status);
-            }
-        } else {
-            // Afficher les informations de base des disques
-            File[] roots = File.listRoots();
-            for (File root : roots) {
-                System.out.println("Lecteur : " + root.getAbsolutePath());
-                System.out.println("  Espace total : " + formatSize(root.getTotalSpace()));
-                System.out.println("  Espace libre : " + formatSize(root.getFreeSpace()));
-                System.out.println("  Espace utilisé : " + formatSize(root.getTotalSpace() - root.getFreeSpace()));
+            gpuProcess.waitFor();
+        } catch (Exception e) {
+            System.err.println("Erreur GPU : " + e.getMessage());
+        }
+
+        // Affichage des disques
+        System.out.println("\n=== Disques ===");
+        File[] roots = File.listRoots();
+        for (File root : roots) {
+            if (root.getTotalSpace() > 0) {
+                System.out.println("\n" + root.getPath());
+                System.out.println("Espace total : " + formatSize(root.getTotalSpace()));
+                System.out.println("Espace libre : " + formatSize(root.getFreeSpace()));
+                System.out.println("Espace utilisé : " + formatSize(root.getTotalSpace() - root.getFreeSpace()));
+                double usedPercent = ((double)(root.getTotalSpace() - root.getFreeSpace()) / root.getTotalSpace()) * 100;
+                System.out.println("Utilisé : " + String.format("%.1f%%", usedPercent));
             }
         }
 
-        if (systemData.hasData("error")) {
+        // État d'activation Windows depuis SystemData
+        if (isCompatibleOS()) {
+            System.out.println("\n=== État d'Activation Windows ===");
+            systemData.getOsCaption().ifPresentOrElse(
+                caption -> System.out.println("Système : " + caption),
+                () -> System.out.println("Impossible de déterminer l'état d'activation de Windows")
+            );
+            systemData.getOsSerial().ifPresent(serial -> 
+                System.out.println("Numéro de série : " + serial));
+            systemData.getOsLicense().ifPresent(license -> 
+                System.out.println("Date d'activation : " + license));
+        }
+
+        // Informations sur la batterie
+        if (isCompatibleOS()) {
+            System.out.println("\n=== Informations Batterie ===");
+            try {
+                ProcessBuilder pb = new ProcessBuilder(
+                    "wmic",
+                    "path",
+                    "Win32_Battery",
+                    "get",
+                    "EstimatedChargeRemaining,Status"
+                );
+                pb.redirectErrorStream(true);
+                Process process = pb.start();
+                
+                java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(process.getInputStream())
+                );
+                
+                String line;
+                boolean firstLine = true;
+                boolean hasBattery = false;
+                while ((line = reader.readLine()) != null) {
+                    if (firstLine) {
+                        firstLine = false;
+                        continue;
+                    }
+                    if (!line.trim().isEmpty()) {
+                        hasBattery = true;
+                        String[] parts = line.trim().split("\\s+");
+                        if (parts.length >= 2) {
+                            System.out.println("Niveau de charge : " + parts[0] + "%");
+                            System.out.println("État : " + parts[1]);
+                        }
+                    }
+                }
+                if (!hasBattery) {
+                    System.out.println("Aucune batterie détectée");
+                }
+                process.waitFor();
+            } catch (Exception e) {
+                System.out.println("Impossible de récupérer les informations de la batterie");
+            }
+        }
+
+        // Informations réseau
+        System.out.println("\n=== Informations Réseau ===");
+        try {
+            java.net.InetAddress localHost = java.net.InetAddress.getLocalHost();
+            System.out.println("Nom d'hôte : " + localHost.getHostName());
+            
+            final boolean[] hasNetworkInterfaces = {false};
+            java.net.NetworkInterface.getNetworkInterfaces().asIterator().forEachRemaining(ni -> {
+                try {
+                    if (ni.isUp() && !ni.isLoopback()) {
+                        hasNetworkInterfaces[0] = true;
+                        System.out.println("\nInterface : " + ni.getDisplayName());
+                        System.out.println("  Nom : " + ni.getName());
+                        System.out.println("  Adresse MAC : " + formatMAC(ni.getHardwareAddress()));
+                        ni.getInetAddresses().asIterator().forEachRemaining(addr -> {
+                            if (!addr.isLoopbackAddress() && !addr.getHostAddress().startsWith("169.254.")) {
+                                System.out.println("  Adresse IP : " + addr.getHostAddress());
+                            }
+                        });
+                    }
+                } catch (Exception e) {
+                    // Ignorer les erreurs sur les interfaces individuelles
+                }
+            });
+            if (!hasNetworkInterfaces[0]) {
+                System.out.println("Aucune interface réseau active détectée");
+            }
+        } catch (Exception e) {
+            System.out.println("Erreur lors de la récupération des informations réseau");
+        }
+
+        // Informations détaillées sur les disques
+        System.out.println("\n=== Disques Détaillés ===");
+        try {
+            ProcessBuilder pb = new ProcessBuilder(
+                "wmic",
+                "diskdrive",
+                "get",
+                "model,size,status"
+            );
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            
+            java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(process.getInputStream())
+            );
+            
+            String line;
+            boolean firstLine = true;
+            boolean hasDisks = false;
+            while ((line = reader.readLine()) != null) {
+                if (firstLine) {
+                    firstLine = false;
+                    continue;
+                }
+                if (!line.trim().isEmpty()) {
+                    String[] parts = line.trim().split("\\s+", 3);
+                    if (parts.length >= 3 && !parts[0].equals("NULL")) {
+                        hasDisks = true;
+                        System.out.println("\n" + parts[0]);
+                        try {
+                            long size = Long.parseLong(parts[1]);
+                            if (size > 0) {
+                                System.out.println("Taille : " + formatSize(size));
+                            }
+                        } catch (NumberFormatException e) {
+                            // Ignorer si la taille n'est pas disponible
+                        }
+                        if (!parts[2].equals("NULL")) {
+                            System.out.println("État : " + parts[2]);
+                        }
+                    }
+                }
+            }
+            process.waitFor();
+        } catch (Exception e) {
             System.out.println("Erreur lors de la récupération des informations disque");
         }
-    }
-
-    private void clearScreen() {
-        System.out.print("\033[H\033[2J");
-        System.out.flush();
-    }
-
-    private String formatSize(long bytes) {
-        if (bytes < 1024)
-            return bytes + " B";
-        int exp = (int) (Math.log(bytes) / Math.log(1024));
-        String pre = "KMGTPE".charAt(exp - 1) + "";
-        return String.format("%.1f %sB", bytes / Math.pow(1024, exp), pre);
-    }
-
-    private String formatUptime(long uptimeSeconds) {
-        long days = uptimeSeconds / (24 * 3600);
-        long hours = (uptimeSeconds % (24 * 3600)) / 3600;
-        long minutes = (uptimeSeconds % 3600) / 60;
-        long seconds = uptimeSeconds % 60;
-
-        StringBuilder uptime = new StringBuilder();
-        if (days > 0) {
-            uptime.append(days).append(" jour").append(days > 1 ? "s" : "").append(" ");
-        }
-        if (hours > 0) {
-            uptime.append(hours).append(" heure").append(hours > 1 ? "s" : "").append(" ");
-        }
-        if (minutes > 0) {
-            uptime.append(minutes).append(" minute").append(minutes > 1 ? "s" : "").append(" ");
-        }
-        if (seconds > 0 || uptime.length() == 0) {
-            uptime.append(seconds).append(" seconde").append(seconds > 1 ? "s" : "");
-        }
-
-        return uptime.toString().trim();
     }
 }

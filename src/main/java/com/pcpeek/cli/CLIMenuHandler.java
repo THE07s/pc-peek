@@ -10,9 +10,7 @@ public class CLIMenuHandler {
     private final SystemData systemData;
     private final StaticInfoMode staticMode;
     private final RealTimeMode realTimeMode;
-    private final TemperatureMode temperatureMode;
-
-    public CLIMenuHandler(SystemData systemData) {
+    private final TemperatureMode temperatureMode;    public CLIMenuHandler(SystemData systemData) {
         this.systemData = systemData;
         this.staticMode = new StaticInfoMode(systemData);
         this.realTimeMode = new RealTimeMode(systemData);
