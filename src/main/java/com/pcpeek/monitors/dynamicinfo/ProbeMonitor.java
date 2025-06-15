@@ -238,7 +238,7 @@ public class ProbeMonitor extends Monitor {
                             Method getSensorName = sensor.getClass().getMethod("GetName");
                             String sensorName = (String) getSensorName.invoke(sensor);
 
-                            if (type == 2 && sensorName.contains("Temperature")) { // Type 2 = Temperature
+                            if (type == 2 && sensorName.contains("Temperature")) {
                                 Method getValue = sensor.getClass().getMethod("GetValue");
                                 Double value = (Double) getValue.invoke(sensor);
                                 if (value != null) {
@@ -273,7 +273,7 @@ public class ProbeMonitor extends Monitor {
                             Method getSensorName = sensor.getClass().getMethod("GetName");
                             String sensorName = (String) getSensorName.invoke(sensor);
 
-                            if (type == 3 && sensorName.contains("Load")) { // Type 3 = Load
+                            if (type == 3 && sensorName.contains("Load")) {
                                 Method getValue = sensor.getClass().getMethod("GetValue");
                                 Double value = (Double) getValue.invoke(sensor);
                                 if (value != null) {

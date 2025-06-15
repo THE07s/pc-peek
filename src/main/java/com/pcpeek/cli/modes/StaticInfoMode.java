@@ -321,7 +321,6 @@ public class StaticInfoMode {
                 System.out.println("Date d'activation : " + license));
         }
 
-        // Informations sur la batterie
         if (isCompatibleOS()) {
             System.out.println("\n=== Informations Batterie ===");
             try {
@@ -489,7 +488,6 @@ public class StaticInfoMode {
     private void displayNetworkInfo() {
         System.out.println("\n=== Réseau ===");
         try {
-            // Informations réseau détaillées
             ProcessBuilder pb = new ProcessBuilder(
                 "powershell",
                 "-Command",

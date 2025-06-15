@@ -9,7 +9,6 @@ public class CLIApplication {
     private final SystemData systemData;
     private final CLIMenuHandler menuHandler;
 
-    // Moniteurs
     private final OSLevelMonitor osMonitor;
     private final HardwareLevelMonitor hwMonitor;
 

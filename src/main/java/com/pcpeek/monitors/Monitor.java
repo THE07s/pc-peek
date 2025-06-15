@@ -202,7 +202,6 @@ public abstract class Monitor {
      * @param info Map où stocker les informations extraites
      */
     protected void processWmicLine(String line, Map<String, Object> info) {
-        // Implémentation par défaut vide - à surcharger
     }
 
     /**
@@ -234,7 +233,6 @@ public abstract class Monitor {
                 System.out.flush();
             }
         } catch (Exception e) {
-            // Fallback: imprimer des lignes vides
             for (int i = 0; i < 50; i++) {
                 System.out.println();
             }
