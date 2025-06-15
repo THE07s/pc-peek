@@ -59,47 +59,38 @@ public class RealTimeMode {
             boolean monitoring = true;
             System.out.println("Surveillance temps réel démarrée... (Appuyez sur Entrée pour arrêter)");
 
-            // Thread pour vérifier l'entrée utilisateur
             Thread inputThread = new Thread(() -> {
                 try {
                     scanner.nextLine();
                 } catch (Exception e) {
-                    // Ignorer
                 }
             });
             inputThread.setDaemon(true);
             inputThread.start();
 
-            // Première lecture pour initialiser les ticks
             hardware.getProcessor().getSystemCpuLoadTicks();            while (monitoring && inputThread.isAlive()) {
                 clearScreen();
                 StringBuilder display = new StringBuilder();
                 display.append("=== Mode Real Time ===\n");
                 display.append("Appuyez sur Entrée pour revenir au menu...\n\n");
                 
-                // Mettre à jour SystemData avec les nouvelles données
                 updateSystemData();
                 
-                // Afficher l'heure actuelle
                 display.append("=== Heure ===\n");
                 display.append(LocalDateTime.now().format(timeFormatter)).append("\n\n");
                 
-                // Afficher les informations CPU depuis SystemData
                 display.append("=== CPU ===\n");
                 CentralProcessor processor = hardware.getProcessor();
                 long cpuCores = processor.getLogicalProcessorCount();
                 systemData.setCpuCores(cpuCores);
                 display.append("Processeurs disponibles: ").append(cpuCores).append("\n");
                 
-                // Charge CPU
                 double cpuLoad = getCpuLoad();
                 systemData.setCpuLoad(cpuLoad);
                 display.append(String.format("Charge CPU: %.1f%%\n", cpuLoad));
                 
-                // Barre de progression CPU
                 addProgressBar(display, cpuLoad, "CPU");
                 
-                // Mémoire
                 display.append("\n=== Mémoire ===\n");
                 GlobalMemory memory = hardware.getMemory();
                 long totalMemory = memory.getTotal();
@@ -107,7 +98,6 @@ public class RealTimeMode {
                 long usedMemory = totalMemory - availableMemory;
                 double memoryUsage = (usedMemory * 100.0) / totalMemory;
                 
-                // Mettre à jour SystemData
                 systemData.setTotalMemory(totalMemory);
                 systemData.setAvailableMemory(availableMemory);
                 
@@ -115,10 +105,8 @@ public class RealTimeMode {
                 display.append(String.format("Utilisée: %s (%.1f%%)\n", formatSize(usedMemory), memoryUsage));
                 display.append(String.format("Libre: %s\n", formatSize(availableMemory)));
                 
-                // Barre de progression mémoire
                 addProgressBar(display, memoryUsage, "Mémoire");
 
-                // Températures
                 display.append("\nTempératures:\n");
                 try {
                     double cpuTemp = hardware.getSensors().getCpuTemperature();
@@ -133,19 +121,17 @@ public class RealTimeMode {
                     display.append("Température CPU non disponible\n");
                 }
 
-                // Ventilateurs via WMI
                 display.append("\nVentilateurs:\n");
                 displayFanInfo(display);
 
                 System.out.print(display.toString());
                 System.out.flush();
 
-                // Vérifier si l'utilisateur a appuyé sur Entrée
                 if (!inputThread.isAlive()) {
                     monitoring = false;
                 }
                 
-                Thread.sleep(1000); // Mise à jour toutes les secondes
+                Thread.sleep(1000);
             }
         } catch (Exception e) {
             System.err.println("Erreur lors du mode temps réel: " + e.getMessage());
@@ -172,7 +158,6 @@ public class RealTimeMode {
                 System.out.flush();
             }
         } catch (Exception e) {
-            // Fallback: imprimer des lignes vides
             for (int i = 0; i < 50; i++) {
                 System.out.println();
             }
@@ -181,26 +166,21 @@ public class RealTimeMode {
 
     private void updateSystemData() {
         try {
-            // Mettre à jour les informations système de base
             CentralProcessor processor = hardware.getProcessor();
             GlobalMemory memory = hardware.getMemory();
             
-            // CPU
             systemData.setCpuCores((long) processor.getLogicalProcessorCount());
             systemData.setCpuLoad(getCpuLoad());
             
-            // Mémoire
             systemData.setTotalMemory(memory.getTotal());
             systemData.setAvailableMemory(memory.getAvailable());
             
-            // Température
             try {
                 double cpuTemp = hardware.getSensors().getCpuTemperature();
                 if (cpuTemp > 0) {
                     systemData.setCpuTemperature(cpuTemp);
                 }
             } catch (Exception e) {
-                // Ignorer les erreurs de température
             }
         } catch (Exception e) {
             System.err.println("Erreur lors de la mise à jour des données système: " + e.getMessage());
@@ -243,11 +223,11 @@ public class RealTimeMode {
         for (int j = 0; j < tempBarLength; j++) {
             if (j < tempFilledLength) {
                 if (temperature >= 80) {
-                    tempBar.append("#"); // Rouge pour température élevée
+                    tempBar.append("#");
                 } else if (temperature >= 60) {
-                    tempBar.append("="); // Orange pour température moyenne
+                    tempBar.append("=");
                 } else {
-                    tempBar.append("-"); // Vert pour température normale
+                    tempBar.append("-");
                 }
             } else {
                 tempBar.append(" ");
@@ -293,9 +273,8 @@ public class RealTimeMode {
                             fanSpeeds.add(speed);
                             display.append(String.format("%s: %d RPM\n", fanName, speed));
                             
-                            // Barre de vitesse du ventilateur
                             int fanBarLength = 30;
-                            int fanFilledLength = (int) ((speed / 5000.0) * fanBarLength); // 5000 RPM comme max
+                            int fanFilledLength = (int) ((speed / 5000.0) * fanBarLength);
                             fanFilledLength = Math.min(fanFilledLength, fanBarLength);
                             fanFilledLength = Math.max(fanFilledLength, 0);
                             
@@ -304,11 +283,11 @@ public class RealTimeMode {
                             for (int j = 0; j < fanBarLength; j++) {
                                 if (j < fanFilledLength) {
                                     if (speed >= 4000) {
-                                        fanBar.append("█"); // Rouge pour vitesse élevée
+                                        fanBar.append("█");
                                     } else if (speed >= 2000) {
-                                        fanBar.append("▓"); // Orange pour vitesse moyenne
+                                        fanBar.append("▓");
                                     } else {
-                                        fanBar.append("░"); // Vert pour vitesse normale
+                                        fanBar.append("░");
                                     }
                                 } else {
                                     fanBar.append(" ");
@@ -318,12 +297,10 @@ public class RealTimeMode {
                             display.append(fanBar.toString()).append("\n");
                         }
                     } catch (NumberFormatException e) {
-                        // Ignorer les lignes qui ne sont pas des nombres
                     }
                 }
             }
             
-            // Mettre à jour SystemData avec les vitesses des ventilateurs
             if (!fanSpeeds.isEmpty()) {
                 systemData.setFanSpeeds(fanSpeeds.stream().mapToInt(Integer::intValue).toArray());
             }

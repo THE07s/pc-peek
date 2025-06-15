@@ -17,11 +17,9 @@ public class CLIApplication {
         this.systemData = new SystemData();
         this.menuHandler = new CLIMenuHandler(systemData);
 
-        // Initialisation des moniteurs
         this.osMonitor = new OSLevelMonitor();
         this.hwMonitor = new HardwareLevelMonitor();
 
-        // Collecte initiale des données statiques
         collectStaticData();
     }
 
@@ -37,10 +35,8 @@ public class CLIApplication {
     }
 
     private void collectStaticData() {
-        // Collecte des données statiques OS
         osMonitor.getSystemInfo().forEach(systemData::putStatic);
 
-        // Collecte des données statiques matérielles
         hwMonitor.getSystemInfo().forEach(systemData::putStatic);
     }
 }

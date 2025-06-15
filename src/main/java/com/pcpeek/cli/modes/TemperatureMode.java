@@ -60,10 +60,8 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
         displayMetrics();
         waitForEnter(scanner);
     }    private void updateMetrics() {
-        // Mettre à jour les données système
         updateSystemData();
         
-        // Récupérer les données depuis SystemData
         double currentTemp = systemData.getCpuTemperature().orElse(0.0);
         double currentLoad = systemData.getCpuLoad().orElse(0.0);
 
@@ -77,13 +75,11 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
     }
     
     private void updateSystemData() {
-        // Mise à jour de la température CPU
         double cpuTemp = hal.getSensors().getCpuTemperature();
         if (cpuTemp > 0) {
             systemData.setCpuTemperature(cpuTemp);
         }
         
-        // Mise à jour de la charge CPU
         double cpuLoad = getCurrentCpuLoad();
         systemData.setCpuLoad(cpuLoad);
     }
@@ -273,7 +269,6 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
                 System.out.flush();
             }
         } catch (Exception e) {
-            // Fallback: imprimer des lignes vides
             for (int i = 0; i < 50; i++) {
                 System.out.println();
             }

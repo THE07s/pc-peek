@@ -15,10 +15,8 @@ public class StaticInfoMode {
         System.out.println("=== Informations STATIC ===");
         System.out.println("Affichage des informations système détaillées...\n");
 
-        // Collecter et mettre à jour les données dans SystemData
         collectSystemInfo();
 
-        // Afficher les informations depuis SystemData
         displaySystemInfo();
 
         System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
@@ -26,7 +24,6 @@ public class StaticInfoMode {
     }
 
     private void collectSystemInfo() {
-        // Informations système de base
         try {
             // Informations OS
             systemData.setOsName(System.getProperty("os.name"));
@@ -57,20 +54,17 @@ public class StaticInfoMode {
     }
 
     private void displaySystemInfo() {
-        // Afficher les informations depuis SystemData
         System.out.println("=== Informations Système ===");
         
         systemData.getCpuName().ifPresent(name -> 
             System.out.println("\n=== Processeur ===\n" + name));
         
-        // Informations OS
         System.out.println("\nSystème d'exploitation : " + 
             systemData.getOsName().orElse(System.getProperty("os.name")) + " " + 
             systemData.getOsVersion().orElse(System.getProperty("os.version")));
         System.out.println("Architecture : " + 
             systemData.getOsArchitecture().orElse(System.getProperty("os.arch")));
         
-        // Informations Java et runtime
         System.out.println("Version Java : " + System.getProperty("java.version") + " (" + System.getProperty("java.vendor") + ")");
         System.out.println("Utilisateur : " + System.getProperty("user.name"));
         System.out.println("Répertoire de travail : " + System.getProperty("user.dir"));
@@ -78,11 +72,9 @@ public class StaticInfoMode {
         System.out.println("Mémoire totale (Java) : " + formatSize(Runtime.getRuntime().totalMemory()));
         System.out.println("Mémoire utilisée (Java) : " + formatSize(Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()));
         
-        // Affichage des informations collectées
         displayCollectedInfo();
     }
     
-    // Méthodes utilitaires
     private void clearScreen() {
         try {
             if (System.getProperty("os.name").toLowerCase().contains("windows")) {
@@ -140,7 +132,6 @@ public class StaticInfoMode {
     }
 
     private void collectGpuInfo() {
-        // Les informations GPU sont affichées directement car SystemData n'a pas de setter GPU pour le moment
     }
 
     private void collectDiskInfo() {
@@ -148,7 +139,6 @@ public class StaticInfoMode {
             File[] roots = File.listRoots();
             for (File root : roots) {
                 if (root.getTotalSpace() > 0) {
-                    // Stocker les informations du premier disque trouvé
                     systemData.setDiskSize(root.getTotalSpace());
                     break;
                 }
@@ -159,7 +149,6 @@ public class StaticInfoMode {
     }
 
     private void collectNetworkInfo() {
-        // Les informations réseau sont affichées directement pour le moment
     }
 
     private void collectWindowsActivationInfo() {
@@ -207,18 +196,15 @@ public class StaticInfoMode {
     }
 
     private void collectBatteryInfo() {
-        // Les informations de batterie sont affichées directement pour le moment
     }
 
     private void displayCollectedInfo() {
-        // Informations CPU
         System.out.println("\n=== Processeur ===");
         systemData.getCpuName().ifPresent(name -> 
             System.out.println("Modèle : " + name));
         System.out.println("Cœurs physiques : " + systemData.getCpuCores());
         System.out.println("Cœurs logiques : " + systemData.getCpuThreads());
 
-        // Informations GPU
         System.out.println("\n=== Cartes Graphiques ===");
         try {
             Process gpuProcess = Runtime.getRuntime().exec("wmic path win32_VideoController get name");
@@ -244,7 +230,6 @@ public class StaticInfoMode {
             System.out.println("Erreur GPU : " + e.getMessage());
         }
 
-        // Informations RAM
         System.out.println("\n=== Mémoire RAM ===");
         long totalMemory = systemData.getTotalMemory().orElse(0L);
         long usedMemory = totalMemory - Runtime.getRuntime().freeMemory();
@@ -254,7 +239,6 @@ public class StaticInfoMode {
         double ramUsagePercent = totalMemory > 0 ? ((double)usedMemory / totalMemory) * 100 : 0;
         System.out.println("Utilisation : " + String.format("%.1f%%", ramUsagePercent));
         
-        // Barre de progression RAM
         int barLength = 30;
         int filledLength = (int) (ramUsagePercent * barLength / 100);
         StringBuilder bar = new StringBuilder();
@@ -269,7 +253,6 @@ public class StaticInfoMode {
         bar.append("]");
         System.out.println(bar.toString());
 
-        // Informations Disques
         System.out.println("\n=== Disques ===");
         File[] roots = File.listRoots();
         for (File root : roots) {
@@ -281,7 +264,6 @@ public class StaticInfoMode {
                 double usedPercent = ((double)(root.getTotalSpace() - root.getFreeSpace()) / root.getTotalSpace()) * 100;
                 System.out.println("Utilisé : " + String.format("%.1f%%", usedPercent));
                 
-                // Barre de progression disque
                 barLength = 30;
                 filledLength = (int) (usedPercent * barLength / 100);
                 bar = new StringBuilder();
@@ -298,7 +280,6 @@ public class StaticInfoMode {
             }
         }
 
-        // Informations Réseau
         System.out.println("\n=== Réseau ===");
         try {
             java.net.InetAddress localHost = java.net.InetAddress.getLocalHost();
@@ -319,7 +300,6 @@ public class StaticInfoMode {
                         });
                     }
                 } catch (Exception e) {
-                    // Ignorer les erreurs sur les interfaces individuelles
                 }
             });
             if (!hasNetworkInterfaces[0]) {
@@ -329,7 +309,6 @@ public class StaticInfoMode {
             System.out.println("Erreur lors de la récupération des informations réseau");
         }
 
-        // État d'activation Windows
         if (isCompatibleOS()) {
             System.out.println("\n=== État d'Activation Windows ===");
             systemData.getOsCaption().ifPresentOrElse(
@@ -390,7 +369,6 @@ public class StaticInfoMode {
     private void displayPerformanceInfo() {
         System.out.println("\n=== Performances Système ===");
         try {
-            // Score de performance Windows
             ProcessBuilder pb = new ProcessBuilder(
                 "powershell",
                 "-Command",
@@ -429,7 +407,6 @@ public class StaticInfoMode {
     private void displaySecurityInfo() {
         System.out.println("\n=== Sécurité ===");
         try {
-            // État de l'antivirus
             ProcessBuilder pb = new ProcessBuilder(
                 "powershell",
                 "-Command",
@@ -471,7 +448,6 @@ public class StaticInfoMode {
     private void displayDeviceInfo() {
         System.out.println("\n=== Périphériques ===");
         try {
-            // Périphériques USB
             ProcessBuilder pb = new ProcessBuilder(
                 "powershell",
                 "-Command",
@@ -565,7 +541,6 @@ public class StaticInfoMode {
                 double usedPercent = ((double)(root.getTotalSpace() - root.getFreeSpace()) / root.getTotalSpace()) * 100;
                 System.out.println("Utilisé : " + String.format("%.1f%%", usedPercent));
                 
-                // Barre de progression
                 int barLength = 30;
                 int filledLength = (int) (usedPercent * barLength / 100);
                 StringBuilder bar = new StringBuilder();
@@ -587,7 +562,6 @@ public class StaticInfoMode {
         if (isCompatibleOS()) {
             System.out.println("\n=== Windows ===");
             try {
-                // Informations Windows détaillées
                 ProcessBuilder pb = new ProcessBuilder(
                     "powershell",
                     "-Command",
