@@ -1,30 +1,53 @@
 package com.pcpeek.cli.modes;
 
 import com.pcpeek.SystemData;
-import com.pcpeek.monitors.dynamicinfo.ProbeMonitor;
-import com.pcpeek.monitors.dynamicinfo.ResourceMonitor;
-
+import oshi.SystemInfo;
+import oshi.hardware.CentralProcessor;
+import oshi.hardware.GlobalMemory;
+import oshi.hardware.HardwareAbstractionLayer;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Scanner;
 
 public class RealTimeMode {
     private final SystemData systemData;
-    private final ProbeMonitor probeMonitor;
-    private final ResourceMonitor resourceMonitor;
+    private final SystemInfo systemInfo;
+    private final HardwareAbstractionLayer hardware;
+    private final DateTimeFormatter timeFormatter;
+    private long[] prevTicks;
 
     public RealTimeMode(SystemData systemData) {
         this.systemData = systemData;
-        this.probeMonitor = new ProbeMonitor();
-        this.resourceMonitor = new ResourceMonitor();
+        this.systemInfo = new SystemInfo();
+        this.hardware = systemInfo.getHardware();
+        this.timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
+        this.prevTicks = new long[CentralProcessor.TickType.values().length];
+    }
+
+    private double getCpuLoad() {
+        CentralProcessor processor = hardware.getProcessor();
+        long[] prevTicks = processor.getSystemCpuLoadTicks();
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        long[] ticks = processor.getSystemCpuLoadTicks();
+        long user = ticks[CentralProcessor.TickType.USER.getIndex()] - prevTicks[CentralProcessor.TickType.USER.getIndex()];
+        long nice = ticks[CentralProcessor.TickType.NICE.getIndex()] - prevTicks[CentralProcessor.TickType.NICE.getIndex()];
+        long sys = ticks[CentralProcessor.TickType.SYSTEM.getIndex()] - prevTicks[CentralProcessor.TickType.SYSTEM.getIndex()];
+        long idle = ticks[CentralProcessor.TickType.IDLE.getIndex()] - prevTicks[CentralProcessor.TickType.IDLE.getIndex()];
+        long totalCpu = user + nice + sys + idle;
+        return totalCpu > 0 ? 100.0 * (totalCpu - idle) / totalCpu : 0.0;
     }
 
     public void execute(Scanner scanner) {
         clearScreen();
         System.out.println("=== Mode Real Time ===");
-
+        
         // Vérifier la compatibilité OS pour OpenHardwareMonitor
         if (!isWindows()) {
-            System.out
-                    .println("\nLe mode Real Time nécessite OpenHardwareMonitor qui n'est disponible que sur Windows.");
+            System.out.println("\nLe mode Real Time nécessite OpenHardwareMonitor qui n'est disponible que sur Windows.");
             System.out.println("Système détecté: " + System.getProperty("os.name"));
             System.out.println("Veuillez utiliser le mode Statique à la place.");
             System.out.println("\nAppuyez sur Entrée pour revenir au menu...");
@@ -36,121 +59,79 @@ public class RealTimeMode {
             boolean monitoring = true;
             System.out.println("Surveillance temps réel démarrée... (Appuyez sur Entrée pour arrêter)");
 
-            // Thread pour vérifier l'entrée utilisateur
-            Thread inputThread = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        scanner.nextLine();
-                    } catch (Exception e) {
-                        // Ignorer
-                    }
+            Thread inputThread = new Thread(() -> {
+                try {
+                    scanner.nextLine();
+                } catch (Exception e) {
                 }
             });
             inputThread.setDaemon(true);
             inputThread.start();
 
-            while (monitoring && inputThread.isAlive()) {
+            hardware.getProcessor().getSystemCpuLoadTicks();            while (monitoring && inputThread.isAlive()) {
                 clearScreen();
                 StringBuilder display = new StringBuilder();
                 display.append("=== Mode Real Time ===\n");
                 display.append("Appuyez sur Entrée pour revenir au menu...\n\n");
-
-                // Mettre à jour SystemData avec les données dynamiques
-                try {
-                    // Utiliser les méthodes standardisées de Monitor
-                    resourceMonitor.update();
-                    probeMonitor.update();
-
-                    systemData.updateDynamicData(resourceMonitor.getSystemInfo());
-                    systemData.updateDynamicData(probeMonitor.getSystemInfo());
-                } catch (Exception e) {
-                    display.append("Erreur lors de la récupération des données: ").append(e.getMessage()).append("\n");
-                }
-
-                // Afficher les informations CPU depuis SystemData
+                
+                updateSystemData();
+                
+                display.append("=== Heure ===\n");
+                display.append(LocalDateTime.now().format(timeFormatter)).append("\n\n");
+                
                 display.append("=== CPU ===\n");
-                if (systemData.getCpuCores().isPresent()) {
-                    Long cores = systemData.getCpuCores().get();
-                    display.append("Processeurs disponibles: ").append(cores).append("\n");
-                } else {
-                    display.append("Processeurs disponibles: ")
-                            .append(Runtime.getRuntime().availableProcessors()).append("\n");
-                }
-
-                // Charge CPU depuis SystemData ou fallback
-                if (systemData.getCpuLoad().isPresent()) {
-                    double usage = systemData.getCpuLoad().getAsDouble();
-                    display.append(String.format("Charge CPU: %.1f%%\n", usage));
-                    addProgressBar(display, usage, "CPU");
-                } else {
-                    double cpuLoad = getCpuLoad();
-                    display.append(String.format("Charge CPU: %.1f%%\n", cpuLoad));
-                    addProgressBar(display, cpuLoad, "CPU");
-                }
-
-                // Mémoire depuis SystemData ou fallback JVM
+                CentralProcessor processor = hardware.getProcessor();
+                long cpuCores = processor.getLogicalProcessorCount();
+                systemData.setCpuCores(cpuCores);
+                display.append("Processeurs disponibles: ").append(cpuCores).append("\n");
+                
+                double cpuLoad = getCpuLoad();
+                systemData.setCpuLoad(cpuLoad);
+                display.append(String.format("Charge CPU: %.1f%%\n", cpuLoad));
+                
+                addProgressBar(display, cpuLoad, "CPU");
+                
                 display.append("\n=== Mémoire ===\n");
+                GlobalMemory memory = hardware.getMemory();
+                long totalMemory = memory.getTotal();
+                long availableMemory = memory.getAvailable();
+                long usedMemory = totalMemory - availableMemory;
+                double memoryUsage = (usedMemory * 100.0) / totalMemory;
+                
+                systemData.setTotalMemory(totalMemory);
+                systemData.setAvailableMemory(availableMemory);
+                
+                display.append(String.format("Totale: %s\n", formatSize(totalMemory)));
+                display.append(String.format("Utilisée: %s (%.1f%%)\n", formatSize(usedMemory), memoryUsage));
+                display.append(String.format("Libre: %s\n", formatSize(availableMemory)));
+                
+                addProgressBar(display, memoryUsage, "Mémoire");
 
-                if (systemData.getMemoryTotal().isPresent()) {
-                    long totalMem = systemData.getMemoryTotal().get();
-                    // Utiliser les données système
-                    if (systemData.getMemoryFree().isPresent()) {
-                        long freeMem = systemData.getMemoryFree().get();
-                        long usedMem = totalMem - freeMem;
-                        double memoryUsage = (usedMem * 100.0) / totalMem;
-
-                        display.append(String.format("Totale: %s\n", formatSize(totalMem)));
-                        display.append(
-                                String.format("Utilisée: %s (%.1f%%)\n", formatSize(usedMem), memoryUsage));
-                        display.append(String.format("Libre: %s\n", formatSize(freeMem)));
-
-                        addProgressBar(display, memoryUsage, "Mémoire");
+                display.append("\nTempératures:\n");
+                try {
+                    double cpuTemp = hardware.getSensors().getCpuTemperature();
+                    systemData.setCpuTemperature(cpuTemp);
+                    if (cpuTemp > 0) {
+                        display.append(String.format("CPU: %.1f°C\n", cpuTemp));
+                        addTemperatureBar(display, cpuTemp);
+                    } else {
+                        display.append("Température CPU non disponible\n");
                     }
-                } else {
-                    // Fallback JVM
-                    Runtime runtime = Runtime.getRuntime();
-                    long totalMemory = runtime.totalMemory();
-                    long freeMemory = runtime.freeMemory();
-                    long usedMemory = totalMemory - freeMemory;
-                    double memoryUsage = (usedMemory * 100.0) / totalMemory;
-
-                    display.append(String.format("Totale (JVM): %s\n", formatSize(totalMemory)));
-                    display.append(
-                            String.format("Utilisée: %s (%.1f%%)\n", formatSize(usedMemory), memoryUsage));
-                    display.append(String.format("Libre: %s\n", formatSize(freeMemory)));
-
-                    addProgressBar(display, memoryUsage, "Mémoire");
+                } catch (Exception e) {
+                    display.append("Température CPU non disponible\n");
                 }
 
-                // Informations système depuis SystemData
-                display.append("\n=== Système ===\n");
-                if (systemData.getOsCaption().isPresent()) {
-                    String caption = systemData.getOsCaption().get();
-                    display.append("OS: ").append(caption).append("\n");
-                } else {
-                    display.append("OS: ").append(System.getProperty("os.name")).append(" ")
-                            .append(System.getProperty("os.version")).append("\n");
-                }
-
-                if (systemData.getOsArchitecture().isPresent()) {
-                    String arch = systemData.getOsArchitecture().get();
-                    display.append("Architecture: ").append(arch).append("\n");
-                } else {
-                    display.append("Architecture: ").append(System.getProperty("os.arch")).append("\n");
-                }
-
-                display.append("Java: ").append(System.getProperty("java.version")).append("\n");
+                display.append("\nVentilateurs:\n");
+                displayFanInfo(display);
 
                 System.out.print(display.toString());
                 System.out.flush();
 
-                // Vérifier si l'utilisateur a appuyé sur Entrée
                 if (!inputThread.isAlive()) {
                     monitoring = false;
                 }
-
-                Thread.sleep(1000); // Mise à jour toutes les secondes
+                
+                Thread.sleep(1000);
             }
         } catch (Exception e) {
             System.err.println("Erreur lors du mode temps réel: " + e.getMessage());
@@ -161,22 +142,10 @@ public class RealTimeMode {
         return System.getProperty("os.name").toLowerCase().contains("windows");
     }
 
-    private double getCpuLoad() {
-        // Simulation simple de charge CPU
-        // Dans un cas réel, on utiliserait OperatingSystemMXBean ou OpenHardwareMonitor
-        long totalMemory = Runtime.getRuntime().totalMemory();
-        long freeMemory = Runtime.getRuntime().freeMemory();
-        double memoryUsage = ((double) (totalMemory - freeMemory) / totalMemory) * 100;
-
-        // Approximation basée sur l'utilisation mémoire + facteur aléatoire
-        return Math.min(95.0, memoryUsage + (Math.random() * 20 - 10));
-    }
-
     private String formatSize(long bytes) {
-        if (bytes < 1024)
-            return bytes + " B";
+        if (bytes < 1024) return bytes + " B";
         int exp = (int) (Math.log(bytes) / Math.log(1024));
-        String pre = "KMGTPE".charAt(exp - 1) + "";
+        String pre = "KMGTPE".charAt(exp-1) + "";
         return String.format("%.1f %sB", bytes / Math.pow(1024, exp), pre);
     }
 
@@ -189,10 +158,32 @@ public class RealTimeMode {
                 System.out.flush();
             }
         } catch (Exception e) {
-            // Fallback: imprimer des lignes vides
             for (int i = 0; i < 50; i++) {
                 System.out.println();
             }
+        }
+    }
+
+    private void updateSystemData() {
+        try {
+            CentralProcessor processor = hardware.getProcessor();
+            GlobalMemory memory = hardware.getMemory();
+            
+            systemData.setCpuCores((long) processor.getLogicalProcessorCount());
+            systemData.setCpuLoad(getCpuLoad());
+            
+            systemData.setTotalMemory(memory.getTotal());
+            systemData.setAvailableMemory(memory.getAvailable());
+            
+            try {
+                double cpuTemp = hardware.getSensors().getCpuTemperature();
+                if (cpuTemp > 0) {
+                    systemData.setCpuTemperature(cpuTemp);
+                }
+            } catch (Exception e) {
+            }
+        } catch (Exception e) {
+            System.err.println("Erreur lors de la mise à jour des données système: " + e.getMessage());
         }
     }
 
@@ -203,21 +194,124 @@ public class RealTimeMode {
         filledLength = Math.max(filledLength, 0);
 
         StringBuilder bar = new StringBuilder();
-        bar.append("[");
+        bar.append("  [");
         for (int i = 0; i < barLength; i++) {
             if (i < filledLength) {
                 if (percentage >= 80) {
-                    bar.append("█");
+                    bar.append("#");
                 } else if (percentage >= 50) {
-                    bar.append("▓");
+                    bar.append("=");
                 } else {
-                    bar.append("░");
+                    bar.append("-");
                 }
             } else {
                 bar.append(" ");
             }
         }
         bar.append("]");
-        display.append("  ").append(bar.toString()).append("\n");
+        display.append(bar.toString()).append("\n");
+    }
+
+    private void addTemperatureBar(StringBuilder display, double temperature) {
+        int tempBarLength = 30;
+        int tempFilledLength = (int) ((temperature / 100.0) * tempBarLength);
+        tempFilledLength = Math.min(tempFilledLength, tempBarLength);
+        tempFilledLength = Math.max(tempFilledLength, 0);
+        
+        StringBuilder tempBar = new StringBuilder();
+        tempBar.append("  [");
+        for (int j = 0; j < tempBarLength; j++) {
+            if (j < tempFilledLength) {
+                if (temperature >= 80) {
+                    tempBar.append("#");
+                } else if (temperature >= 60) {
+                    tempBar.append("=");
+                } else {
+                    tempBar.append("-");
+                }
+            } else {
+                tempBar.append(" ");
+            }
+        }
+        tempBar.append("]");
+        display.append(tempBar.toString()).append("\n");
+    }
+
+    private void displayFanInfo(StringBuilder display) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(
+                "powershell",
+                "-Command",
+                "Get-WmiObject -Class Win32_Fan | Select-Object Name, Speed | Format-Table -AutoSize"
+            );
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            
+            java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(process.getInputStream())
+            );
+            
+            String line;
+            boolean firstLine = true;
+            boolean hasFans = false;
+            java.util.List<Integer> fanSpeeds = new java.util.ArrayList<>();
+            
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (firstLine || line.isEmpty() || line.contains("----")) {
+                    firstLine = false;
+                    continue;
+                }
+                
+                String[] parts = line.split("\\s+");
+                if (parts.length >= 2) {
+                    try {
+                        String fanName = parts[0];
+                        int speed = Integer.parseInt(parts[parts.length - 1]);
+                        if (speed > 0) {
+                            hasFans = true;
+                            fanSpeeds.add(speed);
+                            display.append(String.format("%s: %d RPM\n", fanName, speed));
+                            
+                            int fanBarLength = 30;
+                            int fanFilledLength = (int) ((speed / 5000.0) * fanBarLength);
+                            fanFilledLength = Math.min(fanFilledLength, fanBarLength);
+                            fanFilledLength = Math.max(fanFilledLength, 0);
+                            
+                            StringBuilder fanBar = new StringBuilder();
+                            fanBar.append("  [");
+                            for (int j = 0; j < fanBarLength; j++) {
+                                if (j < fanFilledLength) {
+                                    if (speed >= 4000) {
+                                        fanBar.append("█");
+                                    } else if (speed >= 2000) {
+                                        fanBar.append("▓");
+                                    } else {
+                                        fanBar.append("░");
+                                    }
+                                } else {
+                                    fanBar.append(" ");
+                                }
+                            }
+                            fanBar.append("]");
+                            display.append(fanBar.toString()).append("\n");
+                        }
+                    } catch (NumberFormatException e) {
+                    }
+                }
+            }
+            
+            if (!fanSpeeds.isEmpty()) {
+                systemData.setFanSpeeds(fanSpeeds.stream().mapToInt(Integer::intValue).toArray());
+            }
+            
+            if (!hasFans) {
+                display.append("Aucun ventilateur détecté\n");
+            }
+            
+            process.waitFor();
+        } catch (Exception e) {
+            display.append("Aucun ventilateur détecté\n");
+        }
     }
 }

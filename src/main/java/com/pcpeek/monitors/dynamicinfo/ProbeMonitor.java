@@ -20,7 +20,7 @@ public class ProbeMonitor extends Monitor {
     private static final String OHM_SENSOR_CLASS = "OpenHardwareMonitorLib.Hardware";
 
     public ProbeMonitor() {
-        super(); // Appeler le constructeur de Monitor
+        super();
         try {
             systemInfo = new SystemInfo();
             hardware = systemInfo.getHardware();
@@ -28,7 +28,6 @@ public class ProbeMonitor extends Monitor {
             memory = hardware.getMemory();
             sensors = hardware.getSensors();
 
-            // Initialiser les capteurs OHM
             initializeOHMSensors();
         } catch (Exception e) {
             System.err.println("Erreur lors de l'initialisation de ProbeMonitor: " + e.getMessage());
@@ -37,7 +36,6 @@ public class ProbeMonitor extends Monitor {
 
     private void initializeOHMSensors() {
         try {
-            // Se connecter à OpenHardwareMonitor via COM
             Class<?> ohmClass = Class.forName(OHM_SENSOR_CLASS);
             ohmHardware = ohmClass.getDeclaredConstructor().newInstance();
         } catch (Exception e) {
@@ -49,11 +47,9 @@ public class ProbeMonitor extends Monitor {
         Map<String, Object> probeInfo = new HashMap<>();
 
         try {
-            // Températures
             probeInfo.put("cpu_temperature", getCpuTemperature());
             probeInfo.put("gpu_temperature", getGpuTemperature());
 
-            // Charges
             double[] cpuLoads = getCpuLoadPerCore();
             if (cpuLoads != null) {
                 probeInfo.put("cpu_loads_per_core", cpuLoads);
@@ -65,17 +61,14 @@ public class ProbeMonitor extends Monitor {
             }
             probeInfo.put("gpu_load", getGpuLoad());
 
-            // Mémoire
             probeInfo.put("total_memory", getTotalMemory());
             probeInfo.put("available_memory", getAvailableMemory());
 
-            // Ventilateurs
             int[] fanSpeeds = getFanSpeeds();
             if (fanSpeeds != null) {
                 probeInfo.put("fan_speeds", fanSpeeds);
             }
 
-            // Nom du processeur
             probeInfo.put("processor_name", getProcessorName());
 
         } catch (Exception e) {
@@ -86,9 +79,7 @@ public class ProbeMonitor extends Monitor {
         return probeInfo;
     }
 
-    public void updateSensors() {
-        // Rien à faire ici, OSHI met à jour automatiquement
-    }
+    public void updateSensors() {}
 
     public void displayProbeInfo(Map<String, Object> probeInfo) {
         if (probeInfo.containsKey("error")) {
@@ -98,6 +89,7 @@ public class ProbeMonitor extends Monitor {
 
         try {
             System.out.println("\n=== Capteurs Système ===");
+            // CPU
             System.out.println("\nCPU:");
             if (probeInfo.containsKey("processor_name")) {
                 System.out.println("  Modèle: " + probeInfo.get("processor_name"));
@@ -188,7 +180,7 @@ public class ProbeMonitor extends Monitor {
     public double[] getCpuLoadPerCore() {
         try {
             long[] prevTicks = processor.getSystemCpuLoadTicks();
-            Thread.sleep(1000); // Attendre 1 seconde pour avoir une mesure
+            Thread.sleep(1000);
             long[] currTicks = processor.getSystemCpuLoadTicks();
 
             if (prevTicks != null && currTicks != null) {
@@ -203,7 +195,6 @@ public class ProbeMonitor extends Monitor {
 
                 double systemLoad = totalTicks > 0 ? 1.0 - ((double) idleTicks / totalTicks) : 0;
 
-                // Répartir la charge système sur tous les cœurs
                 for (int i = 0; i < loadPerCore.length; i++) {
                     loadPerCore[i] = systemLoad;
                 }
@@ -247,7 +238,7 @@ public class ProbeMonitor extends Monitor {
                             Method getSensorName = sensor.getClass().getMethod("GetName");
                             String sensorName = (String) getSensorName.invoke(sensor);
 
-                            if (type == 2 && sensorName.contains("Temperature")) { // Type 2 = Temperature
+                            if (type == 2 && sensorName.contains("Temperature")) {
                                 Method getValue = sensor.getClass().getMethod("GetValue");
                                 Double value = (Double) getValue.invoke(sensor);
                                 if (value != null) {
@@ -259,7 +250,6 @@ public class ProbeMonitor extends Monitor {
                 }
             }
         } catch (Exception e) {
-            // Ignorer les erreurs silencieusement
         }
         return -1;
     }
@@ -283,7 +273,7 @@ public class ProbeMonitor extends Monitor {
                             Method getSensorName = sensor.getClass().getMethod("GetName");
                             String sensorName = (String) getSensorName.invoke(sensor);
 
-                            if (type == 3 && sensorName.contains("Load")) { // Type 3 = Load
+                            if (type == 3 && sensorName.contains("Load")) {
                                 Method getValue = sensor.getClass().getMethod("GetValue");
                                 Double value = (Double) getValue.invoke(sensor);
                                 if (value != null) {
@@ -295,12 +285,10 @@ public class ProbeMonitor extends Monitor {
                 }
             }
         } catch (Exception e) {
-            // Ignorer les erreurs silencieusement
         }
         return -1;
     }
 
-    // Implémentation des méthodes abstraites de Monitor
     @Override
     protected Map<String, Object> initializeSystemInfo() {
         return getProbeInfo();

@@ -10,9 +10,7 @@ public class CLIMenuHandler {
     private final SystemData systemData;
     private final StaticInfoMode staticMode;
     private final RealTimeMode realTimeMode;
-    private final TemperatureMode temperatureMode;
-
-    public CLIMenuHandler(SystemData systemData) {
+    private final TemperatureMode temperatureMode;    public CLIMenuHandler(SystemData systemData) {
         this.systemData = systemData;
         this.staticMode = new StaticInfoMode(systemData);
         this.realTimeMode = new RealTimeMode(systemData);
@@ -26,7 +24,7 @@ public class CLIMenuHandler {
             try {
                 displayMenu();
                 int choice = scanner.nextInt();
-                scanner.nextLine(); // Consommer le retour à la ligne
+                scanner.nextLine();
 
                 if (choice == 4) {
                     running = false;
@@ -36,7 +34,7 @@ public class CLIMenuHandler {
                 }
             } catch (Exception e) {
                 System.err.println("Erreur : " + e.getMessage());
-                scanner.nextLine(); // Consommer l'entrée invalide
+                scanner.nextLine();
             }
         }
     }
@@ -45,7 +43,7 @@ public class CLIMenuHandler {
         System.out.println("\n=== PC-Peek ===");
         System.out.println("1. Mode Statique (snapshot complet)");
         System.out.println("2. Mode Real Time (informations dynamiques)");
-        System.out.println("3. Mode Températures (affichage en temps réel)");
+        System.out.println("3. Mode Diagnostic (analyse système)");
         System.out.println("4. Quitter");
         System.out.print("\nVotre choix : ");
     }

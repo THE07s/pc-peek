@@ -379,7 +379,6 @@ public class DashboardView extends Main {
         try {
             com.pcpeek.monitors.staticinfo.OSLevelMonitor osMonitor = new com.pcpeek.monitors.staticinfo.OSLevelMonitor();
             com.pcpeek.monitors.staticinfo.HardwareLevelMonitor hwMonitor = new com.pcpeek.monitors.staticinfo.HardwareLevelMonitor();
-            // Utiliser les méthodes standardisées de Monitor
             osMonitor.update();
             hwMonitor.update();
             systemData.updateStaticData(osMonitor.getSystemInfo());
@@ -387,7 +386,6 @@ public class DashboardView extends Main {
 
             com.pcpeek.monitors.dynamicinfo.ProbeMonitor probeMonitor = new com.pcpeek.monitors.dynamicinfo.ProbeMonitor();
             com.pcpeek.monitors.dynamicinfo.ResourceMonitor resourceMonitor = new com.pcpeek.monitors.dynamicinfo.ResourceMonitor();
-            // Utiliser les méthodes standardisées de Monitor
             probeMonitor.update();
             resourceMonitor.update();
             systemData.updateDynamicData(probeMonitor.getSystemInfo());

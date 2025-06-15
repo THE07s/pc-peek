@@ -86,7 +86,7 @@ public class SystemDataIntegrationTest {
                 System.out.println("  ✗ SystemData est null dans DashboardView");
             }
         } catch (Exception e) {
-            System.out.println("  ⚠ Erreur lors du test DashboardView: " + e.getMessage());
+            System.out.println("  Erreur lors du test DashboardView: " + e.getMessage());
             System.out.println("  (Normal en dehors d'un contexte web Vaadin)");
         }
         System.out.println();
