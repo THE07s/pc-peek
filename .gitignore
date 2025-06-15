@@ -27,6 +27,6 @@ replay_pid*
 .idea/
 .vscode/
 target/
-/src/main/frontend/generated/
+out/
+src/main/frontend/generated/
 **/.DS_Store
-src/main/java/com/pcpeek/OpenHardwareMonitor/OpenHardwareMonitor.config
