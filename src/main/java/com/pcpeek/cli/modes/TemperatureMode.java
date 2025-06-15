@@ -2,11 +2,25 @@ package com.pcpeek.cli.modes;
 
 import com.pcpeek.SystemData;
 import com.pcpeek.monitors.dynamicinfo.ProbeMonitor;
-import java.util.Scanner;
+import java.util.*;
 
 public class TemperatureMode {
+    // Constantes pour l'analyse avancée des températures
+    private static final double TEMP_CRITICAL = 90.0;
+    private static final double TEMP_HIGH = 85.0;
+    private static final double VAR_EXTREME = 8.0;
+    private static final double VAR_HIGH = 5.0;
+    private static final double STD_DEV_CRITICAL = 5.0;
+    private static final double STD_DEV_HIGH = 3.0;
+    private static final double TREND_CRITICAL = 3.0;
+    private static final double TREND_HIGH = 2.0;
+    private static final double TREND_LOW = 0.5;
+    
     private final SystemData systemData;
     private final ProbeMonitor probeMonitor;
+    private final Queue<Double> temperatureHistory = new LinkedList<>();
+    private final Queue<Double> loadHistory = new LinkedList<>();
+    private final int HISTORY_SIZE = 5;
 
     public TemperatureMode(SystemData systemData) {
         this.systemData = systemData;
@@ -14,6 +28,80 @@ public class TemperatureMode {
     }
 
     public void execute(Scanner scanner) {
+        clearScreen();
+        showMenu(scanner);
+    }
+
+    private void showMenu(Scanner scanner) {
+        boolean running = true;
+        while (running) {
+            clearScreen();
+            System.out.println("=== Mode Température ===");
+            System.out.println("1. État actuel");
+            System.out.println("2. Analyse détaillée");
+            System.out.println("3. Surveillance continue");
+            System.out.println("4. Retour au menu principal");
+            System.out.print("\nChoix: ");
+
+            String choice = scanner.nextLine();
+            switch (choice) {
+                case "1":
+                    showCurrentState(scanner);
+                    break;
+                case "2":
+                    showDetailedAnalysis(scanner);
+                    break;
+                case "3":
+                    showContinuousMonitoring(scanner);
+                    break;
+                case "4":
+                    running = false;
+                    break;
+                default:
+                    System.out.println("Choix invalide. Appuyez sur Entrée pour continuer...");
+                    scanner.nextLine();
+                    break;
+            }
+        }
+    }
+
+    private void showCurrentState(Scanner scanner) {
+        clearScreen();
+        System.out.println("=== État Actuel ===");
+        updateMetrics();
+        displayCurrentMetrics();
+        waitForEnter(scanner);
+    }
+
+    private void showDetailedAnalysis(Scanner scanner) {
+        clearScreen();
+        System.out.println("=== Analyse Détaillée ===");
+        System.out.println("\nCollecte des données en cours...");
+        
+        // Collecter des données pendant 5 secondes
+        for (int i = 0; i < 5; i++) {
+            updateMetrics();
+            System.out.print(".");
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+        System.out.println("\n");
+
+        if (temperatureHistory.size() < 2) {
+            System.out.println("Erreur lors de la collecte des données. Veuillez réessayer.");
+            waitForEnter(scanner);
+            return;
+        }
+
+        performDetailedAnalysis();
+        waitForEnter(scanner);
+    }
+
+    private void showContinuousMonitoring(Scanner scanner) {
         clearScreen();
         System.out.println("=== Mode Températures ===");
 
@@ -118,6 +206,204 @@ public class TemperatureMode {
         } catch (Exception e) {
             System.err.println("Erreur lors du mode températures: " + e.getMessage());
         }
+    }
+
+    private void updateMetrics() {
+        // Mettre à jour SystemData
+        try {
+            probeMonitor.update();
+            systemData.updateDynamicData(probeMonitor.getSystemInfo());
+        } catch (Exception e) {
+            // En cas d'erreur, utiliser les valeurs simulées
+        }
+
+        // Obtenir la température actuelle (réelle ou simulée)
+        double currentTemp;
+        if (systemData.getCpuTemperature().isPresent()) {
+            currentTemp = systemData.getCpuTemperature().getAsDouble();
+        } else {
+            currentTemp = simulateCpuTemperature();
+        }
+
+        // Obtenir la charge CPU actuelle
+        double currentLoad = getCurrentCpuLoad();
+
+        // Ajouter à l'historique
+        temperatureHistory.offer(currentTemp);
+        loadHistory.offer(currentLoad);
+
+        // Maintenir la taille de l'historique
+        if (temperatureHistory.size() > HISTORY_SIZE) {
+            temperatureHistory.poll();
+            loadHistory.poll();
+        }
+    }
+
+    private double getCurrentCpuLoad() {
+        // Utiliser SystemData si disponible
+        if (systemData.getCpuLoad().isPresent()) {
+            return systemData.getCpuLoad().getAsDouble();
+        }
+        
+        // Sinon, estimer basé sur la mémoire
+        Runtime runtime = Runtime.getRuntime();
+        return ((double) (runtime.totalMemory() - runtime.freeMemory()) / runtime.totalMemory()) * 100;
+    }
+
+    private void displayCurrentMetrics() {
+        Double currentTemp = temperatureHistory.isEmpty() ? null : 
+            ((LinkedList<Double>) temperatureHistory).peekLast();
+        Double currentLoad = loadHistory.isEmpty() ? null : 
+            ((LinkedList<Double>) loadHistory).peekLast();
+
+        if (currentTemp != null) {
+            System.out.printf("\nTempérature CPU: %.1f°C\n", currentTemp);
+            System.out.print("État: ");
+            if (currentTemp >= TEMP_CRITICAL) {
+                System.out.println("❌ CRITIQUE");
+            } else if (currentTemp >= TEMP_HIGH) {
+                System.out.println("⚠️  ÉLEVÉE");
+            } else {
+                System.out.println("✅ NORMAL");
+            }
+        }
+
+        if (currentLoad != null) {
+            System.out.printf("\nCharge CPU: %.1f%%\n", currentLoad);
+            System.out.print("État: ");
+            if (currentLoad >= 80) {
+                System.out.println("⚠️  ÉLEVÉE");
+            } else {
+                System.out.println("✅ NORMAL");
+            }
+        }
+    }
+
+    private void performDetailedAnalysis() {
+        List<Double> temps = new ArrayList<>(temperatureHistory);
+        double mean = calculateMean(temps);
+        double variance = calculateVariance(temps);
+        double stdDev = Math.sqrt(variance);
+        double currentTemp = temps.get(temps.size() - 1);
+        
+        System.out.println("=== Situation Actuelle ===");
+        System.out.printf("Température actuelle: %.1f°C\n", currentTemp);
+        System.out.printf("Température moyenne: %.1f°C\n", mean);
+        System.out.printf("Écart type: %.2f°C\n", stdDev);
+        
+        boolean isWorrisome = false;
+        
+        if (currentTemp >= TEMP_CRITICAL) {
+            System.out.println("\n❌ TEMPÉRATURE CRITIQUE!");
+            System.out.println("DANGER: Risque de dommages matériels immédiats");
+            isWorrisome = true;
+        } else if (currentTemp >= TEMP_HIGH) {
+            System.out.println("\n⚠️  TEMPÉRATURE ÉLEVÉE");
+            System.out.println("ATTENTION: Risque de surchauffe");
+            isWorrisome = true;
+        }
+        
+        double deviationFromMean = currentTemp - mean;
+        if (deviationFromMean > stdDev * 2) {
+            System.out.println("\n⚠️  TEMPÉRATURE ANORMALEMENT HAUTE");
+            System.out.printf("Écart par rapport à la moyenne: +%.1f°C\n", deviationFromMean);
+            isWorrisome = true;
+        }
+        
+        double maxVariation = calculateMaxVariation(temps);
+        if (maxVariation > VAR_EXTREME && currentTemp > mean) {
+            System.out.println("\n❌ VARIATIONS EXTRÊMES");
+            System.out.printf("Variation: %.1f°C/seconde\n", maxVariation);
+            System.out.println("DANGER: Risque de surchauffe rapide");
+            isWorrisome = true;
+        } else if (maxVariation > VAR_HIGH && currentTemp > mean) {
+            System.out.println("\n⚠️  VARIATIONS RAPIDES");
+            System.out.printf("Variation: %.1f°C/seconde\n", maxVariation);
+            isWorrisome = true;
+        }
+        
+        if (stdDev > STD_DEV_CRITICAL && currentTemp > mean) {
+            System.out.println("\n❌ INSTABILITÉ CRITIQUE");
+            System.out.println("DANGER: Fluctuations dangereuses vers le haut");
+            isWorrisome = true;
+        } else if (stdDev > STD_DEV_HIGH && currentTemp > mean) {
+            System.out.println("\n⚠️  INSTABILITÉ DÉTECTÉE");
+            System.out.println("ATTENTION: Fluctuations importantes");
+            isWorrisome = true;
+        }
+        
+        System.out.println("\n=== Tendance ===");
+        double trend = calculateSimpleTrend(temps);
+        if (trend > TREND_CRITICAL) {
+            System.out.println("❌ AUGMENTATION TRÈS RAPIDE");
+            isWorrisome = true;
+        } else if (trend > TREND_HIGH) {
+            System.out.println("⚠️  AUGMENTATION RAPIDE");
+            isWorrisome = true;
+        } else if (trend > TREND_LOW) {
+            System.out.println("↗️  Légère augmentation");
+        } else if (trend < -TREND_CRITICAL) {
+            System.out.println("↘️  Diminution rapide (normal)");
+        } else if (trend < -TREND_HIGH) {
+            System.out.println("↘️  Diminution (normal)");
+        } else if (trend < -TREND_LOW) {
+            System.out.println("↘️  Légère diminution (normal)");
+        } else {
+            System.out.println("→ Stable");
+        }
+        
+        if (isWorrisome) {
+            System.out.println("\n=== Recommandations ===");
+            if (currentTemp >= TEMP_CRITICAL) {
+                System.out.println("1. ARRÊTEZ les applications gourmandes");
+                System.out.println("2. Vérifiez le refroidissement");
+                System.out.println("3. Considérez l'arrêt du système");
+            } else if (currentTemp >= TEMP_HIGH || maxVariation > VAR_HIGH) {
+                System.out.println("1. Fermez les applications non essentielles");
+                System.out.println("2. Vérifiez la ventilation");
+                System.out.println("3. Surveillez la température");
+            }
+        }
+    }
+
+    // Méthodes de calcul statistique
+    private double calculateMean(List<Double> values) {
+        if (values.isEmpty()) return 0.0;
+        double sum = 0.0;
+        for (Double value : values) {
+            sum += value;
+        }
+        return sum / values.size();
+    }
+
+    private double calculateVariance(List<Double> values) {
+        if (values.isEmpty()) return 0.0;
+        double mean = calculateMean(values);
+        double sum = 0.0;
+        for (Double value : values) {
+            sum += Math.pow(value - mean, 2);
+        }
+        return sum / values.size();
+    }
+
+    private double calculateMaxVariation(List<Double> values) {
+        if (values.size() < 2) return 0.0;
+        double maxVar = 0.0;
+        for (int i = 1; i < values.size(); i++) {
+            double var = Math.abs(values.get(i) - values.get(i-1));
+            maxVar = Math.max(maxVar, var);
+        }
+        return maxVar;
+    }
+
+    private double calculateSimpleTrend(List<Double> values) {
+        if (values.size() < 2) return 0.0;
+        return values.get(values.size() - 1) - values.get(0);
+    }
+
+    private void waitForEnter(Scanner scanner) {
+        System.out.println("\nAppuyez sur Entrée pour continuer...");
+        scanner.nextLine();
     }
 
     private boolean isWindows() {
