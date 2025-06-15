@@ -1,17 +1,22 @@
 package com.pcpeek.monitors.staticinfo;
 
+import com.pcpeek.monitors.Monitor;
 import java.util.Map;
 import java.util.HashMap;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 
-public class HardwareLevelMonitor {
+public class HardwareLevelMonitor extends Monitor {
     private static final String[] WMIC_COMMANDS = {
-        "wmic cpu get name,numberofcores,numberoflogicalprocessors,currentclockspeed,maxclockspeed",
-        "wmic memorychip get capacity,speed,manufacturer,partnumber",
-        "wmic diskdrive get model,size,mediatype,status",
-        "wmic baseboard get manufacturer,product,version,serialnumber"
+            "wmic cpu get name,numberofcores,numberoflogicalprocessors,currentclockspeed,maxclockspeed",
+            "wmic memorychip get capacity,speed,manufacturer,partnumber",
+            "wmic diskdrive get model,size,mediatype,status",
+            "wmic baseboard get manufacturer,product,version,serialnumber"
     };
+
+    public HardwareLevelMonitor() {
+        super(); // Appeler le constructeur de Monitor
+    }
 
     public Map<String, Object> getSystemInfo() {
         Map<String, Object> info = new HashMap<>();
@@ -26,7 +31,8 @@ public class HardwareLevelMonitor {
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                     String line;
                     while ((line = reader.readLine()) != null) {
-                        if (line.trim().isEmpty() || line.contains("Name") || line.contains("Capacity")) continue;
+                        if (line.trim().isEmpty() || line.contains("Name") || line.contains("Capacity"))
+                            continue;
                         processHardwareInfo(line.trim(), info);
                     }
                 }
@@ -36,11 +42,6 @@ public class HardwareLevelMonitor {
             info.put("error", "Erreur lors de la récupération des informations matérielles");
         }
         return info;
-    }
-
-    public boolean isCompatibleOS() {
-        String osName = System.getProperty("os.name").toLowerCase();
-        return osName.contains("windows");
     }
 
     public void displayHardwareInfo(Map<String, Object> systemInfo) {
@@ -79,7 +80,7 @@ public class HardwareLevelMonitor {
         System.out.println("\nMémoire :");
         System.out.println("---------");
         if (systemInfo.containsKey("memory.total")) {
-            System.out.println("Capacité totale : " + formatSize((Long)systemInfo.get("memory.total")));
+            System.out.println("Capacité totale : " + formatSize((Long) systemInfo.get("memory.total")));
         }
         if (systemInfo.containsKey("memory.speed")) {
             System.out.println("Vitesse : " + systemInfo.get("memory.speed") + " MHz");
@@ -99,7 +100,7 @@ public class HardwareLevelMonitor {
             System.out.println("Modèle : " + systemInfo.get("disk.model"));
         }
         if (systemInfo.containsKey("disk.size")) {
-            System.out.println("Taille : " + formatSize((Long)systemInfo.get("disk.size")));
+            System.out.println("Taille : " + formatSize((Long) systemInfo.get("disk.size")));
         }
         if (systemInfo.containsKey("disk.type")) {
             System.out.println("Type : " + systemInfo.get("disk.type"));
@@ -166,10 +167,24 @@ public class HardwareLevelMonitor {
         }
     }
 
-    private String formatSize(long bytes) {
-        if (bytes < 1024) return bytes + " B";
-        int exp = (int) (Math.log(bytes) / Math.log(1024));
-        String pre = "KMGTPE".charAt(exp-1) + "";
-        return String.format("%.1f %sB", bytes / Math.pow(1024, exp), pre);
+    // Implémentation des méthodes abstraites de Monitor
+    @Override
+    protected Map<String, Object> initializeSystemInfo() {
+        return getSystemInfo();
+    }
+
+    @Override
+    protected void performUpdate() {
+        // Pas de mise à jour spécifique nécessaire pour les infos statiques
+    }
+
+    @Override
+    protected void displayContent() {
+        displayHardwareInfo(getSystemInfo());
+    }
+
+    @Override
+    protected String getMonitorName() {
+        return "Moniteur Matériel";
     }
 }

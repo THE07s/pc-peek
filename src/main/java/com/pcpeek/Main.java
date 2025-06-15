@@ -18,7 +18,7 @@ public class Main implements AppShellConfigurator {
 
     public static void main(String[] args) {
         System.out.println("=== PC Peek - Système de Monitoring ===\n");
-        
+
         // Vérifier les arguments de lancement
         if (hasCliArgument(args)) {
             startCLI();
@@ -45,7 +45,7 @@ public class Main implements AppShellConfigurator {
         System.out.println("Mode Interface Web Activé");
         System.out.println("Démarrage du serveur web...");
         System.out.println("L'application sera accessible sur : http://localhost:8080\n");
-        
+
         try {
             SpringApplication.run(Main.class, args);
         } catch (Exception e) {

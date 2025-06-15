@@ -1,5 +1,6 @@
 package com.pcpeek.monitors.dynamicinfo;
 
+import com.pcpeek.monitors.Monitor;
 import oshi.SystemInfo;
 import oshi.hardware.CentralProcessor;
 import oshi.hardware.GlobalMemory;
@@ -9,7 +10,7 @@ import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.HashMap;
 
-public class ProbeMonitor {
+public class ProbeMonitor extends Monitor {
     private SystemInfo systemInfo;
     private HardwareAbstractionLayer hardware;
     private CentralProcessor processor;
@@ -19,13 +20,14 @@ public class ProbeMonitor {
     private static final String OHM_SENSOR_CLASS = "OpenHardwareMonitorLib.Hardware";
 
     public ProbeMonitor() {
+        super(); // Appeler le constructeur de Monitor
         try {
             systemInfo = new SystemInfo();
             hardware = systemInfo.getHardware();
             processor = hardware.getProcessor();
             memory = hardware.getMemory();
             sensors = hardware.getSensors();
-            
+
             // Initialiser les capteurs OHM
             initializeOHMSensors();
         } catch (Exception e) {
@@ -45,12 +47,12 @@ public class ProbeMonitor {
 
     public Map<String, Object> getProbeInfo() {
         Map<String, Object> probeInfo = new HashMap<>();
-        
+
         try {
             // Températures
             probeInfo.put("cpu_temperature", getCpuTemperature());
             probeInfo.put("gpu_temperature", getGpuTemperature());
-            
+
             // Charges
             double[] cpuLoads = getCpuLoadPerCore();
             if (cpuLoads != null) {
@@ -62,25 +64,25 @@ public class ProbeMonitor {
                 probeInfo.put("cpu_load_avg", avgLoad / cpuLoads.length);
             }
             probeInfo.put("gpu_load", getGpuLoad());
-            
+
             // Mémoire
             probeInfo.put("total_memory", getTotalMemory());
             probeInfo.put("available_memory", getAvailableMemory());
-            
+
             // Ventilateurs
             int[] fanSpeeds = getFanSpeeds();
             if (fanSpeeds != null) {
                 probeInfo.put("fan_speeds", fanSpeeds);
             }
-            
+
             // Nom du processeur
             probeInfo.put("processor_name", getProcessorName());
-            
+
         } catch (Exception e) {
             System.err.println("Erreur lors de la collecte des sondes: " + e.getMessage());
             probeInfo.put("error", "Erreur lors de la collecte des données");
         }
-        
+
         return probeInfo;
     }
 
@@ -93,7 +95,7 @@ public class ProbeMonitor {
             System.out.println("Erreur : " + probeInfo.get("error"));
             return;
         }
-        
+
         try {
             System.out.println("\n=== Capteurs Système ===");
             System.out.println("\nCPU:");
@@ -110,7 +112,7 @@ public class ProbeMonitor {
                 double load = (Double) probeInfo.get("cpu_load_avg");
                 System.out.println("  Charge moyenne CPU: " + String.format("%.1f%%", load * 100));
             }
-            
+
             // GPU
             System.out.println("\nGPU:");
             if (probeInfo.containsKey("gpu_temperature")) {
@@ -125,7 +127,7 @@ public class ProbeMonitor {
                     System.out.println("  Charge GPU: " + String.format("%.1f%%", gpuLoad));
                 }
             }
-            
+
             // Mémoire
             System.out.println("\nMémoire:");
             if (probeInfo.containsKey("total_memory") && probeInfo.containsKey("available_memory")) {
@@ -133,12 +135,12 @@ public class ProbeMonitor {
                 long available = (Long) probeInfo.get("available_memory");
                 long used = total - available;
                 double usage = (double) used / total * 100;
-                
+
                 System.out.println("  Totale: " + formatSize(total));
                 System.out.println("  Utilisée: " + formatSize(used) + String.format(" (%.1f%%)", usage));
                 System.out.println("  Disponible: " + formatSize(available));
             }
-            
+
             // Ventilateurs
             if (probeInfo.containsKey("fan_speeds")) {
                 int[] fanSpeeds = (int[]) probeInfo.get("fan_speeds");
@@ -151,7 +153,7 @@ public class ProbeMonitor {
                     }
                 }
             }
-            
+
         } catch (Exception e) {
             System.err.println("Erreur lors de l'affichage des capteurs: " + e.getMessage());
         }
@@ -162,7 +164,8 @@ public class ProbeMonitor {
     }
 
     public double getCpuTemperature() {
-        if (!connect()) return -1;
+        if (!connect())
+            return -1;
         try {
             return sensors.getCpuTemperature();
         } catch (Exception e) {
@@ -172,7 +175,8 @@ public class ProbeMonitor {
     }
 
     public String getProcessorName() {
-        if (!connect()) return "Inconnu";
+        if (!connect())
+            return "Inconnu";
         try {
             return processor.getProcessorIdentifier().getName();
         } catch (Exception e) {
@@ -186,24 +190,24 @@ public class ProbeMonitor {
             long[] prevTicks = processor.getSystemCpuLoadTicks();
             Thread.sleep(1000); // Attendre 1 seconde pour avoir une mesure
             long[] currTicks = processor.getSystemCpuLoadTicks();
-            
+
             if (prevTicks != null && currTicks != null) {
                 double[] loadPerCore = new double[processor.getLogicalProcessorCount()];
                 long totalTicks = 0;
-                long idleTicks = currTicks[oshi.hardware.CentralProcessor.TickType.IDLE.getIndex()] - 
-                                prevTicks[oshi.hardware.CentralProcessor.TickType.IDLE.getIndex()];
-                
+                long idleTicks = currTicks[oshi.hardware.CentralProcessor.TickType.IDLE.getIndex()] -
+                        prevTicks[oshi.hardware.CentralProcessor.TickType.IDLE.getIndex()];
+
                 for (int i = 0; i < currTicks.length; i++) {
                     totalTicks += currTicks[i] - prevTicks[i];
                 }
-                
+
                 double systemLoad = totalTicks > 0 ? 1.0 - ((double) idleTicks / totalTicks) : 0;
-                
+
                 // Répartir la charge système sur tous les cœurs
                 for (int i = 0; i < loadPerCore.length; i++) {
                     loadPerCore[i] = systemLoad;
                 }
-                
+
                 return loadPerCore;
             }
         } catch (Exception e) {
@@ -229,20 +233,20 @@ public class ProbeMonitor {
             if (ohmHardware != null) {
                 Method getHardware = ohmHardware.getClass().getMethod("GetHardware");
                 Object[] hardwareList = (Object[]) getHardware.invoke(ohmHardware);
-                
+
                 for (Object hw : hardwareList) {
                     Method getHwName = hw.getClass().getMethod("GetName");
                     String name = (String) getHwName.invoke(hw);
                     if (name.contains("GPU")) {
                         Method getSensors = hw.getClass().getMethod("GetSensors");
                         Object[] sensors = (Object[]) getSensors.invoke(hw);
-                        
+
                         for (Object sensor : sensors) {
                             Method getSensorType = sensor.getClass().getMethod("GetSensorType");
                             int type = (int) getSensorType.invoke(sensor);
                             Method getSensorName = sensor.getClass().getMethod("GetName");
                             String sensorName = (String) getSensorName.invoke(sensor);
-                            
+
                             if (type == 2 && sensorName.contains("Temperature")) { // Type 2 = Temperature
                                 Method getValue = sensor.getClass().getMethod("GetValue");
                                 Double value = (Double) getValue.invoke(sensor);
@@ -265,20 +269,20 @@ public class ProbeMonitor {
             if (ohmHardware != null) {
                 Method getHardware = ohmHardware.getClass().getMethod("GetHardware");
                 Object[] hardwareList = (Object[]) getHardware.invoke(ohmHardware);
-                
+
                 for (Object hw : hardwareList) {
                     Method getHwName = hw.getClass().getMethod("GetName");
                     String name = (String) getHwName.invoke(hw);
                     if (name.contains("GPU")) {
                         Method getSensors = hw.getClass().getMethod("GetSensors");
                         Object[] sensors = (Object[]) getSensors.invoke(hw);
-                        
+
                         for (Object sensor : sensors) {
                             Method getSensorType = sensor.getClass().getMethod("GetSensorType");
                             int type = (int) getSensorType.invoke(sensor);
                             Method getSensorName = sensor.getClass().getMethod("GetName");
                             String sensorName = (String) getSensorName.invoke(sensor);
-                            
+
                             if (type == 3 && sensorName.contains("Load")) { // Type 3 = Load
                                 Method getValue = sensor.getClass().getMethod("GetValue");
                                 Double value = (Double) getValue.invoke(sensor);
@@ -296,10 +300,25 @@ public class ProbeMonitor {
         return -1;
     }
 
-    private String formatSize(long bytes) {
-        if (bytes < 1024) return bytes + " B";
-        int exp = (int) (Math.log(bytes) / Math.log(1024));
-        String pre = "KMGTPE".charAt(exp-1) + "";
-        return String.format("%.1f %sB", bytes / Math.pow(1024, exp), pre);
+    // Implémentation des méthodes abstraites de Monitor
+    @Override
+    protected Map<String, Object> initializeSystemInfo() {
+        return getProbeInfo();
     }
+
+    @Override
+    protected void performUpdate() {
+        updateSensors();
+    }
+
+    @Override
+    protected void displayContent() {
+        displayProbeInfo(getProbeInfo());
+    }
+
+    @Override
+    protected String getMonitorName() {
+        return "Moniteur de Sondes Système";
+    }
+
 }

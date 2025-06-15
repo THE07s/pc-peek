@@ -30,8 +30,6 @@ import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
 import com.vaadin.flow.component.UI;
-import java.util.Arrays;
-import java.util.stream.Collectors;
 
 import static com.pcpeek.SystemData.formatBytes;
 import static com.pcpeek.SystemData.formatOrNA;
@@ -202,31 +200,60 @@ public class DashboardView extends Main {
 
     private List<SystemInfoItem> buildSystemInfoItems() {
         List<SystemInfoItem> items = new ArrayList<>();
-        systemData.getOsCaption().ifPresent(v -> items.add(new SystemInfoItem("OS Caption", v)));
+        if (systemData.getOsCaption().isPresent()) {
+            items.add(new SystemInfoItem("OS Caption", systemData.getOsCaption().get()));
+        }
         items.add(new SystemInfoItem("OS Name", getOSName()));
-        systemData.getOsVersion().ifPresent(v -> items.add(new SystemInfoItem("OS Version", v)));
-        systemData.getOsArchitecture().ifPresent(v -> items.add(new SystemInfoItem("OS Architecture", v)));
-        systemData.getOsSerial().ifPresent(v -> items.add(new SystemInfoItem("OS Serial", v)));
-        systemData.getOsLicense().ifPresent(v -> items.add(new SystemInfoItem("OS License", v)));
-        systemData.getSystemType().ifPresent(v -> items.add(new SystemInfoItem("System Type", v)));
-        systemData.getSystemManufacturer().ifPresent(v -> items.add(new SystemInfoItem("Manufacturer", v)));
-        systemData.getSystemModel().ifPresent(v -> items.add(new SystemInfoItem("Model", v)));
+        if (systemData.getOsVersion().isPresent()) {
+            items.add(new SystemInfoItem("OS Version", systemData.getOsVersion().get()));
+        }
+        if (systemData.getOsArchitecture().isPresent()) {
+            items.add(new SystemInfoItem("OS Architecture", systemData.getOsArchitecture().get()));
+        }
+        if (systemData.getOsSerial().isPresent()) {
+            items.add(new SystemInfoItem("OS Serial", systemData.getOsSerial().get()));
+        }
+        if (systemData.getOsLicense().isPresent()) {
+            items.add(new SystemInfoItem("OS License", systemData.getOsLicense().get()));
+        }
+        if (systemData.getSystemType().isPresent()) {
+            items.add(new SystemInfoItem("System Type", systemData.getSystemType().get()));
+        }
+        if (systemData.getSystemManufacturer().isPresent()) {
+            items.add(new SystemInfoItem("Manufacturer", systemData.getSystemManufacturer().get()));
+        }
+        if (systemData.getSystemModel().isPresent()) {
+            items.add(new SystemInfoItem("Model", systemData.getSystemModel().get()));
+        }
         items.add(new SystemInfoItem("CPU Load", formatOrNA(getCPULoad(), "%.1f%%")));
-        systemData.getCpuLoadAvg()
-                .ifPresent(v -> items.add(new SystemInfoItem("CPU Load Avg", String.format("%.1f", v))));
+        if (systemData.getCpuLoadAvg().isPresent()) {
+            items.add(new SystemInfoItem("CPU Load Avg", String.format("%.1f", systemData.getCpuLoadAvg().getAsDouble())));
+        }
         items.add(new SystemInfoItem("CPU Temperature", formatOrNA(getCPUTemperature(), "%.1f°C")));
         items.add(new SystemInfoItem("CPU Name", getCPUName()));
-        systemData.getCpuCores().ifPresent(v -> items.add(new SystemInfoItem("CPU Cores", v.toString())));
-        systemData.getCpuThreads().ifPresent(v -> items.add(new SystemInfoItem("CPU Threads", v.toString())));
-        systemData.getCpuCurrentSpeed()
-                .ifPresent(v -> items.add(new SystemInfoItem("CPU Current Speed", String.format("%d MHz", v))));
-        systemData.getCpuMaxSpeed()
-                .ifPresent(v -> items.add(new SystemInfoItem("CPU Max Speed", String.format("%d MHz", v))));
+        if (systemData.getCpuCores().isPresent()) {
+            items.add(new SystemInfoItem("CPU Cores", systemData.getCpuCores().get().toString()));
+        }
+        if (systemData.getCpuThreads().isPresent()) {
+            items.add(new SystemInfoItem("CPU Threads", systemData.getCpuThreads().get().toString()));
+        }
+        if (systemData.getCpuCurrentSpeed().isPresent()) {
+            items.add(new SystemInfoItem("CPU Current Speed", String.format("%d MHz", systemData.getCpuCurrentSpeed().get())));
+        }
+        if (systemData.getCpuMaxSpeed().isPresent()) {
+            items.add(new SystemInfoItem("CPU Max Speed", String.format("%d MHz", systemData.getCpuMaxSpeed().get())));
+        }
         items.add(new SystemInfoItem("GPU Load", formatOrNA(getGPULoad(), "%.1f%%")));
         items.add(new SystemInfoItem("GPU Temperature", formatOrNA(getGPUTemperature(), "%.1f°C")));
-        systemData.getMemoryManufacturer().ifPresent(v -> items.add(new SystemInfoItem("Memory Manufacturer", v)));
-        systemData.getMemoryPart().ifPresent(v -> items.add(new SystemInfoItem("Memory Part", v)));
-        systemData.getMemorySpeed().ifPresent(v -> items.add(new SystemInfoItem("Memory Speed", v)));
+        if (systemData.getMemoryManufacturer().isPresent()) {
+            items.add(new SystemInfoItem("Memory Manufacturer", systemData.getMemoryManufacturer().get()));
+        }
+        if (systemData.getMemoryPart().isPresent()) {
+            items.add(new SystemInfoItem("Memory Part", systemData.getMemoryPart().get()));
+        }
+        if (systemData.getMemorySpeed().isPresent()) {
+            items.add(new SystemInfoItem("Memory Speed", systemData.getMemorySpeed().get()));
+        }
         long staticTotal = systemData.getMemoryTotal().orElse(0L);
         long staticFree = systemData.getMemoryFree().orElse(0L);
         items.add(new SystemInfoItem("Static Memory Total", formatBytes(staticTotal)));
@@ -237,23 +264,51 @@ public class DashboardView extends Main {
         items.add(new SystemInfoItem("Dynamic Total Memory", formatBytes(dynTotal)));
         items.add(new SystemInfoItem("Dynamic Available Memory", formatBytes(dynAvailable)));
         items.add(new SystemInfoItem("Dynamic Used Memory", formatBytes(dynUsed)));
-        systemData.getDiskModel().ifPresent(v -> items.add(new SystemInfoItem("Disk Model", v)));
-        systemData.getDiskSize().ifPresent(v -> items.add(new SystemInfoItem("Disk Size", formatBytes(v))));
-        systemData.getDiskType().ifPresent(v -> items.add(new SystemInfoItem("Disk Type", v)));
-        systemData.getDiskStatus().ifPresent(v -> items.add(new SystemInfoItem("Disk Status", v)));
-        systemData.getBoardManufacturer().ifPresent(v -> items.add(new SystemInfoItem("Board Manufacturer", v)));
-        systemData.getBoardModel().ifPresent(v -> items.add(new SystemInfoItem("Board Model", v)));
-        systemData.getBoardVersion().ifPresent(v -> items.add(new SystemInfoItem("Board Version", v)));
-        systemData.getBoardSerial().ifPresent(v -> items.add(new SystemInfoItem("Board Serial", v)));
-        systemData.getFanSpeeds().ifPresent(arr -> {
-            String speeds = Arrays.stream(arr)
-                    .mapToObj(i -> i + " RPM")
-                    .collect(Collectors.joining(", "));
+        if (systemData.getDiskModel().isPresent()) {
+            items.add(new SystemInfoItem("Disk Model", systemData.getDiskModel().get()));
+        }
+        if (systemData.getDiskSize().isPresent()) {
+            items.add(new SystemInfoItem("Disk Size", formatBytes(systemData.getDiskSize().get())));
+        }
+        if (systemData.getDiskType().isPresent()) {
+            items.add(new SystemInfoItem("Disk Type", systemData.getDiskType().get()));
+        }
+        if (systemData.getDiskStatus().isPresent()) {
+            items.add(new SystemInfoItem("Disk Status", systemData.getDiskStatus().get()));
+        }
+        if (systemData.getBoardManufacturer().isPresent()) {
+            items.add(new SystemInfoItem("Board Manufacturer", systemData.getBoardManufacturer().get()));
+        }
+        if (systemData.getBoardModel().isPresent()) {
+            items.add(new SystemInfoItem("Board Model", systemData.getBoardModel().get()));
+        }
+        if (systemData.getBoardVersion().isPresent()) {
+            items.add(new SystemInfoItem("Board Version", systemData.getBoardVersion().get()));
+        }
+        if (systemData.getBoardSerial().isPresent()) {
+            items.add(new SystemInfoItem("Board Serial", systemData.getBoardSerial().get()));
+        }
+        if (systemData.getFanSpeeds().isPresent()) {
+            int[] arr = systemData.getFanSpeeds().get();
+            StringBuilder speedsBuilder = new StringBuilder();
+            for (int i = 0; i < arr.length; i++) {
+                if (i > 0) {
+                    speedsBuilder.append(", ");
+                }
+                speedsBuilder.append(arr[i]).append(" RPM");
+            }
+            String speeds = speedsBuilder.toString();
             items.add(new SystemInfoItem("Fan Speeds", speeds));
-        });
-        systemData.getSystemUptime().ifPresent(v -> items.add(new SystemInfoItem("System Uptime", formatUptime(v))));
-        systemData.getBootTime().ifPresent(v -> items.add(new SystemInfoItem("Boot Time", v)));
-        systemData.getOsName().ifPresent(v -> items.add(new SystemInfoItem("OS Name (dyn)", v)));
+        }
+        if (systemData.getSystemUptime().isPresent()) {
+            items.add(new SystemInfoItem("System Uptime", formatUptime(systemData.getSystemUptime().get())));
+        }
+        if (systemData.getBootTime().isPresent()) {
+            items.add(new SystemInfoItem("Boot Time", systemData.getBootTime().get()));
+        }
+        if (systemData.getOsName().isPresent()) {
+            items.add(new SystemInfoItem("OS Name (dyn)", systemData.getOsName().get()));
+        }
         items.add(new SystemInfoItem("Last Update", systemData.getLastUpdate().toString()));
         return items;
     }
@@ -324,12 +379,19 @@ public class DashboardView extends Main {
         try {
             com.pcpeek.monitors.staticinfo.OSLevelMonitor osMonitor = new com.pcpeek.monitors.staticinfo.OSLevelMonitor();
             com.pcpeek.monitors.staticinfo.HardwareLevelMonitor hwMonitor = new com.pcpeek.monitors.staticinfo.HardwareLevelMonitor();
+            // Utiliser les méthodes standardisées de Monitor
+            osMonitor.update();
+            hwMonitor.update();
             systemData.updateStaticData(osMonitor.getSystemInfo());
             systemData.updateStaticData(hwMonitor.getSystemInfo());
+
             com.pcpeek.monitors.dynamicinfo.ProbeMonitor probeMonitor = new com.pcpeek.monitors.dynamicinfo.ProbeMonitor();
             com.pcpeek.monitors.dynamicinfo.ResourceMonitor resourceMonitor = new com.pcpeek.monitors.dynamicinfo.ResourceMonitor();
-            systemData.updateDynamicData(probeMonitor.getProbeInfo());
-            systemData.updateDynamicData(resourceMonitor.getResourceInfo());
+            // Utiliser les méthodes standardisées de Monitor
+            probeMonitor.update();
+            resourceMonitor.update();
+            systemData.updateDynamicData(probeMonitor.getSystemInfo());
+            systemData.updateDynamicData(resourceMonitor.getSystemInfo());
 
         } catch (Exception e) {
             System.err.println("Erreur lors de la mise à jour des données système: " + e.getMessage());
@@ -453,10 +515,6 @@ public class DashboardView extends Main {
     private String getCPUName() {
         return systemData.getCpuName().orElse(
                 systemData.getProcessorName().orElse("N/A"));
-    }
-
-    private double getCPUFrequency() {
-        return systemData.getCpuMaxSpeed().orElse(0L).doubleValue();
     }
 
     private long getTotalMemory() {

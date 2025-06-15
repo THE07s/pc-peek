@@ -53,9 +53,13 @@ public class SystemDataIntegrationTest {
         ProbeMonitor probeMonitor = new ProbeMonitor();
         ResourceMonitor resourceMonitor = new ResourceMonitor();
         
+        // Utiliser les méthodes standardisées de Monitor
+        probeMonitor.update();
+        resourceMonitor.update();
+        
         // Alimenter SystemData depuis les moniteurs dynamiques
-        systemData.updateDynamicData(probeMonitor.getProbeInfo());
-        systemData.updateDynamicData(resourceMonitor.getResourceInfo());
+        systemData.updateDynamicData(probeMonitor.getSystemInfo());
+        systemData.updateDynamicData(resourceMonitor.getSystemInfo());
         
         System.out.println("  - Données dynamiques collectées: " + systemData.getDynamicDataCount());
         System.out.println("  - CPU Load: " + systemData.getCpuLoad().orElse(-1.0));

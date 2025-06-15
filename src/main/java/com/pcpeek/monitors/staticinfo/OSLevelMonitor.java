@@ -1,16 +1,21 @@
 package com.pcpeek.monitors.staticinfo;
 
+import com.pcpeek.monitors.Monitor;
 import java.util.Map;
 import java.util.HashMap;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 
-public class OSLevelMonitor {
+public class OSLevelMonitor extends Monitor {
     private static final String[] WMIC_COMMANDS = {
-        "wmic os get caption,version,osarchitecture,serialnumber",
-        "wmic computersystem get model,manufacturer,systemtype",
-        "wmic path win32_operatingsystem get caption,version,osarchitecture,serialnumber,licensedatetime"
+            "wmic os get caption,version,osarchitecture,serialnumber",
+            "wmic computersystem get model,manufacturer,systemtype",
+            "wmic path win32_operatingsystem get caption,version,osarchitecture,serialnumber,licensedatetime"
     };
+
+    public OSLevelMonitor() {
+        super(); // Appeler le constructeur de Monitor
+    }
 
     public Map<String, Object> getSystemInfo() {
         Map<String, Object> info = new HashMap<>();
@@ -25,7 +30,8 @@ public class OSLevelMonitor {
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                     String line;
                     while ((line = reader.readLine()) != null) {
-                        if (line.trim().isEmpty() || line.contains("Caption") || line.contains("Version")) continue;
+                        if (line.trim().isEmpty() || line.contains("Caption") || line.contains("Version"))
+                            continue;
                         processSystemInfo(line.trim(), info);
                     }
                 }
@@ -35,11 +41,6 @@ public class OSLevelMonitor {
             info.put("error", "Erreur lors de la récupération des informations système");
         }
         return info;
-    }
-
-    public boolean isCompatibleOS() {
-        String osName = System.getProperty("os.name").toLowerCase();
-        return osName.contains("windows");
     }
 
     private void processSystemInfo(String line, Map<String, Object> info) {
@@ -99,5 +100,26 @@ public class OSLevelMonitor {
         if (systemInfo.containsKey("system.type")) {
             System.out.println("Type : " + systemInfo.get("system.type"));
         }
+    }
+
+    // Implémentation des méthodes abstraites de Monitor
+    @Override
+    protected Map<String, Object> initializeSystemInfo() {
+        return getSystemInfo();
+    }
+
+    @Override
+    protected void performUpdate() {
+        // Pas de mise à jour spécifique nécessaire pour les infos statiques
+    }
+
+    @Override
+    protected void displayContent() {
+        displaySystemInfo(getSystemInfo());
+    }
+
+    @Override
+    protected String getMonitorName() {
+        return "Moniteur Système d'Exploitation";
     }
 }
