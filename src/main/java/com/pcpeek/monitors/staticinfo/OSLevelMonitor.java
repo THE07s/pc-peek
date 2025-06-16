@@ -14,7 +14,7 @@ public class OSLevelMonitor extends Monitor {
     };
 
     public OSLevelMonitor() {
-        super(); // Appeler le constructeur de Monitor
+        super();
     }
 
     public Map<String, Object> getSystemInfo() {
@@ -69,7 +69,6 @@ public class OSLevelMonitor extends Monitor {
             return;
         }
 
-        // Informations système
         System.out.println("\nInformations Système :");
         System.out.println("---------------------");
         if (systemInfo.containsKey("os.caption")) {
@@ -88,7 +87,6 @@ public class OSLevelMonitor extends Monitor {
             System.out.println("Date d'activation : " + systemInfo.get("os.license"));
         }
 
-        // Informations matérielles
         System.out.println("\nInformations Matérielles :");
         System.out.println("-------------------------");
         if (systemInfo.containsKey("system.model")) {
@@ -102,16 +100,13 @@ public class OSLevelMonitor extends Monitor {
         }
     }
 
-    // Implémentation des méthodes abstraites de Monitor
     @Override
     protected Map<String, Object> initializeSystemInfo() {
         return getSystemInfo();
     }
 
     @Override
-    protected void performUpdate() {
-        // Pas de mise à jour spécifique nécessaire pour les infos statiques
-    }
+    protected void performUpdate() {}
 
     @Override
     protected void displayContent() {

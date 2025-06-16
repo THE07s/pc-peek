@@ -24,7 +24,7 @@ public class CLIMenuHandler {
             try {
                 displayMenu();
                 int choice = scanner.nextInt();
-                scanner.nextLine(); // Consommer le retour à la ligne
+                scanner.nextLine();
 
                 if (choice == 4) {
                     running = false;
@@ -34,7 +34,7 @@ public class CLIMenuHandler {
                 }
             } catch (Exception e) {
                 System.err.println("Erreur : " + e.getMessage());
-                scanner.nextLine(); // Consommer l'entrée invalide
+                scanner.nextLine();
             }
         }
     }

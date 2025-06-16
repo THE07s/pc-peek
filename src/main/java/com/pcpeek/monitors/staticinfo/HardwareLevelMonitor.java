@@ -15,7 +15,7 @@ public class HardwareLevelMonitor extends Monitor {
     };
 
     public HardwareLevelMonitor() {
-        super(); // Appeler le constructeur de Monitor
+        super();
     }
 
     public Map<String, Object> getSystemInfo() {
@@ -167,7 +167,7 @@ public class HardwareLevelMonitor extends Monitor {
         }
     }
 
-    // Implémentation des méthodes abstraites de Monitor
+
     @Override
     protected Map<String, Object> initializeSystemInfo() {
         return getSystemInfo();
@@ -175,7 +175,7 @@ public class HardwareLevelMonitor extends Monitor {
 
     @Override
     protected void performUpdate() {
-        // Pas de mise à jour spécifique nécessaire pour les infos statiques
+
     }
 
     @Override

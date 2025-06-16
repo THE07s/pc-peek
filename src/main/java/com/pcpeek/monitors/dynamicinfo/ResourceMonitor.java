@@ -15,7 +15,7 @@ public class ResourceMonitor extends Monitor {
     };
 
     public ResourceMonitor() {
-        super(); // Appeler le constructeur de Monitor
+        super();
     }
 
     public Map<String, Object> getResourceInfo() {
@@ -52,29 +52,22 @@ public class ResourceMonitor extends Monitor {
             return;
         }
 
-        // Effacer l'écran pour un affichage plus propre
         System.out.print("\033[H\033[2J");
         System.out.flush();
 
-        // En-tête avec le nom du processeur
         if (systemInfo.containsKey("cpu.name")) {
             System.out.println("\n" + systemInfo.get("cpu.name"));
             System.out.println("=".repeat(50));
         }
 
-        // Affichage de la charge CPU globale
         displayCPUUsage(systemInfo);
 
-        // Affichage de la mémoire
         displayMemoryUsage(systemInfo);
 
-        // Affichage des fréquences
         displayFrequencies(systemInfo);
 
-        // Affichage des cœurs
         displayCores(systemInfo);
 
-        // Affichage de la température
         displayTemperature(systemInfo);
     }
 
@@ -134,12 +127,10 @@ public class ResourceMonitor extends Monitor {
         if (systemInfo.containsKey("cpu.temperature")) {
             double temp = (Double) systemInfo.get("cpu.temperature");
             String tempLevel = temp > 80 ? "CRITIQUE" : temp > 70 ? "ÉLEVÉE" : "NORMALE";
-            String color = temp > 80 ? "\033[31m" : temp > 70 ? "\033[33m" : "\033[32m";
-            System.out.printf("\nTempérature CPU : %.1f°C %s%s\033[0m%n",
+            System.out.printf("\nTempérature CPU : %.1f°C %s%n",
                     temp,
-                    color,
                     createProgressBar(temp / 100.0, 20));
-            System.out.printf("Niveau : %s%s\033[0m%n", color, tempLevel);
+            System.out.printf("Niveau : %s%n", tempLevel);
         }
     }
 
@@ -159,7 +150,6 @@ public class ResourceMonitor extends Monitor {
 
     private String formatDateTime(String wmiDateTime) {
         try {
-            // Format WMI: YYYYMMDDHHMMSS.mmmmmm+UUU
             String dateStr = wmiDateTime.substring(0, 8);
             String timeStr = wmiDateTime.substring(8, 14);
             return String.format("%s-%s-%s %s:%s:%s",
@@ -174,7 +164,6 @@ public class ResourceMonitor extends Monitor {
         }
     }
 
-    // Implémentation des méthodes abstraites de Monitor
     @Override
     protected Map<String, Object> initializeSystemInfo() {
         return getResourceInfo();
@@ -182,8 +171,6 @@ public class ResourceMonitor extends Monitor {
 
     @Override
     protected void performUpdate() {
-        // Pas de mise à jour spécifique nécessaire, les données sont collectées à la
-        // demande
     }
 
     @Override

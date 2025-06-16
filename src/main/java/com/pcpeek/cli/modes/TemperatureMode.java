@@ -53,11 +53,16 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
         }
     }
 
-    public void updateMetrics() {
+    private void showCurrentState(Scanner scanner) {
+        clearScreen();
+        System.out.println("=== État Actuel ===");
+        updateMetrics();
+        displayMetrics();
+        waitForEnter(scanner);
+    }    private void updateMetrics() {
         // Mettre à jour les données système
         updateSystemData();
         
-        // Récupérer les données depuis SystemData
         double currentTemp = systemData.getCpuTemperature().orElse(0.0);
         double currentLoad = systemData.getCpuLoad().orElse(0.0);
 
@@ -71,13 +76,11 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
     }
 
     private void updateSystemData() {
-        // Mise à jour de la température CPU
         double cpuTemp = hal.getSensors().getCpuTemperature();
         if (cpuTemp > 0) {
             systemData.setCpuTemperature(cpuTemp);
         }
         
-        // Mise à jour de la charge CPU
         double cpuLoad = getCurrentCpuLoad();
         systemData.setCpuLoad(cpuLoad);
     }
@@ -166,12 +169,12 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
         System.out.printf("Écart type: %.2f°C\n", stdDev);
         
         boolean isWorrisome = false;
-        if (currentTemp >= TEMP_CRITICAL) {
+          if (currentTemp >= TEMP_CRITICAL) {
             System.out.println("\nTEMPERATURE CRITIQUE!");
             System.out.println("DANGER: Risque de dommages materiels immediats");
             isWorrisome = true;
         } else if (currentTemp >= TEMP_HIGH) {
-            System.out.println("\nTEMPERATURE ELEVEE");
+            System.out.println("\n[ALERTE] TEMPERATURE ELEVEE");
             System.out.println("ATTENTION: Risque de surchauffe");
             isWorrisome = true;
         }
@@ -279,7 +282,6 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
                 System.out.flush();
             }
         } catch (Exception e) {
-            // Fallback: imprimer des lignes vides
             for (int i = 0; i < 50; i++) {
                 System.out.println();
             }
