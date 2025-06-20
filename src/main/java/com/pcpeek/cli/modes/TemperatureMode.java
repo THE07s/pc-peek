@@ -127,14 +127,6 @@ public class TemperatureMode {    private static final double TEMP_CRITICAL = 90
         }
     }
 
-    public void showCurrentState(Scanner scanner) {
-        clearScreen();
-        System.out.println("=== État Actuel ===");
-        updateMetrics();
-        displayMetrics();
-        waitForEnter(scanner);
-    }
-
     public void showDetailedAnalysis(Scanner scanner) {
         clearScreen();
         System.out.println("=== Analyse Détaillée ===");

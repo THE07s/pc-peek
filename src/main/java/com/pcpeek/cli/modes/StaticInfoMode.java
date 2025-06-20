@@ -150,21 +150,6 @@ public class StaticInfoMode {
     private void collectGpuInfo() {
     }
 
-    private void collectDiskInfo() {
-        try {
-            File[] roots = File.listRoots();
-            for (File root : roots) {
-                if (root.getTotalSpace() > 0) {
-                    // Stocker les informations du premier disque trouvé
-                    systemData.setDiskSize(root.getTotalSpace());
-                    break;
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("Erreur lors de la récupération des informations disque : " + e.getMessage());
-        }
-    }
-
     private void collectNetworkInfo() {
     }
 
@@ -339,7 +324,6 @@ public class StaticInfoMode {
             if (!hasNetworkInterfaces[0]) {
                 System.out.println("Aucune interface réseau active détectée");
             }
-            process.waitFor();
         } catch (Exception e) {
             System.out.println("Impossible de récupérer les informations des périphériques");
         }
